@@ -1,0 +1,53 @@
+# Compiled binaries
+/ngehe
+/ngehe-*
+/examples/vuln-api/vuln-api
+/examples/vuln-api/vuln-api-*
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+
+# Scan output (kept by users locally; not part of the source tree)
+*.jsonl
+*.har
+findings.md
+recon.md
+box.md
+scan.md
+
+# Local config (often contains real tokens — never commit)
+ngehe.yaml
+*.local.yaml
+.env
+.env.*
+
+# Keep the demo fixtures even though they match the patterns above.
+!examples/**/*.har
+!examples/**/*.yaml
+!examples/**/ngehe.yaml
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Go workspace + vendoring
+go.work
+go.work.sum
+vendor/
+
+# Misc
+*.log
+*.tmp
+/tmp/

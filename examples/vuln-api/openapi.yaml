@@ -1,0 +1,43 @@
+openapi: 3.0.0
+info:
+  title: vuln-api
+  version: 0.1.0
+servers:
+  - url: http://127.0.0.1:8787
+paths:
+  /api/me:
+    get:
+      responses:
+        "200":
+          description: ok
+  /api/notes:
+    get:
+      responses:
+        "200":
+          description: ok
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  example: hello
+      responses:
+        "201":
+          description: created
+  /api/notes/{id}:
+    get:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            example: "1"
+      responses:
+        "200":
+          description: ok

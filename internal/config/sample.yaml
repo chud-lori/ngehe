@@ -1,0 +1,52 @@
+# ngehe.yaml — authenticated API pentest config
+# Run: ngehe scan --har capture.har --config ngehe.yaml
+#  or: ngehe scan --openapi openapi.yaml --config ngehe.yaml
+
+scope:
+  hosts:
+    - api.example.local
+  include_paths:
+    - /api/
+  exclude_paths:
+    - /api/health
+    - /api/metrics
+    - /api/login
+  methods: [GET, POST, PUT, PATCH, DELETE]
+
+# Each entry is a user role. The session whose Authorization header matches
+# the baseline of a captured request is auto-detected and skipped during
+# replay (so we don't trivially "find" that alice can read alice's data).
+#
+# Two ways to supply credentials:
+#   - bearer: direct token
+#   - login: ngehe performs the login at start and extracts the token
+sessions:
+  - name: alice
+    login:
+      method: POST
+      url: http://127.0.0.1:8787/api/login
+      content_type: application/json
+      body: '{"username":"alice","password":"hunter2"}'
+      token_jsonpath: token
+  - name: bob
+    login:
+      method: POST
+      url: http://127.0.0.1:8787/api/login
+      content_type: application/json
+      body: '{"username":"bob","password":"swordfish"}'
+      token_jsonpath: token
+
+replay:
+  concurrency: 4
+  include_anon: true
+  timeout_ms: 5000
+  max_body_bytes: 262144
+
+detectors:
+  bola: true          # OWASP API1 — replay across sessions, diff responses
+  jwt_abuse: true     # alg=none, weak secret, kid traversal, exp/iss tampering
+  mass_assign: true   # inject suspicious fields (isAdmin, role, owner) into POST/PUT bodies
+  id_mutation: true   # auto-permute numeric / UUID ids in path + body
+  # A known-authenticated endpoint ngehe should fire JWT abuse checks against.
+  # Should reflect the active session (e.g. /me, /profile).
+  jwt_probe_url: http://127.0.0.1:8787/api/me

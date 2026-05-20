@@ -1,8 +1,6 @@
 # ngehe
 
-Web pentest CLI for authorized assessments, HTB boxes, and CTFs. ngehe discovers a target's attack surface and tests for the OWASP API/Web Top 10 from one binary.
-
-The name (Indonesian for *twin*) reflects the original use case — replay a real user's request as a twin user to find broken access control. That detector is still here, alongside the larger detector library ngehe has grown.
+Pentest CLI for authorized assessments, HTB boxes, and CTFs. ngehe discovers a target's attack surface — web + non-HTTP services — and tests for the OWASP Top 10 plus common HTB attack vectors (SSH, FTP, SMB, LDAP/AD, Kerberos, default credentials) from a single binary.
 
 Status: alpha. Useful in real engagements, not yet a finished product.
 

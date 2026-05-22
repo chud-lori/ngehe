@@ -342,7 +342,7 @@
 <span class="ok">$</span> cd ngehe</pre>
 
       <h3>First run — the wrapper auto-builds</h3>
-      <p>On first invocation the wrapper builds the image from the local Dockerfile (one-time, 5–10 min depending on your bandwidth). Subsequent commands start in <strong>~1 second</strong> against the cached image:</p>
+      <p>On first invocation the wrapper builds the image from the local Dockerfile (one-time, <strong>~15–25 minutes</strong> on a fast connection). Build steps: pull Debian base, compile ngehe, fetch release binaries (nuclei/amass/subfinder/httpx/kerbrute/dalfox), install Ruby gems (evil-winrm), build pipx envs from GitHub (NetExec compiles a Rust RDP crypto module — this is the slowest step), pre-bake the ~1GB nuclei template repository. Subsequent commands start in <strong>~1 second</strong> against the cached image:</p>
 <pre><span class="ok">$</span> ./scripts/ngehe doctor
 ngehe: building ngehe:local from /Users/you/ngehe (one-time, 5-10 min)…
 [+] Building 487.3s (24/24) FINISHED

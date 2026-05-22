@@ -197,7 +197,7 @@ Don't want to install on your host? Use the bundled Docker image instead. Works 
 git clone https://github.com/chud-lori/ngehe.git
 cd ngehe
 
-# 2. First run auto-builds the image (one-time, 5-10 min).
+# 2. First run auto-builds the image (one-time, 15-25 min — NetExec's Rust RDP module is the slow part).
 ./scripts/ngehe doctor
 
 # 3. Use it like the native binary.

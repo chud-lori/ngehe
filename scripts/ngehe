@@ -70,7 +70,7 @@ if [[ "$need_build" -eq 1 ]]; then
     echo "  ./scripts/ngehe doctor" >&2
     exit 1
   fi
-  echo "ngehe: building $NGEHE_IMAGE from $REPO_ROOT (one-time, 5-10 min)…" >&2
+  echo "ngehe: building $NGEHE_IMAGE from $REPO_ROOT (one-time, 15-25 min)…" >&2
   "$DOCKER" build -t "$NGEHE_IMAGE" "$REPO_ROOT"
 fi
 

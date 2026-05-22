@@ -93,25 +93,24 @@ FROM debian:bookworm-slim AS runtime
 #   shell tools:  netcat, socat, ssh-client, proxychains4
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl jq dnsutils \
+      git \
       nmap \
       sqlmap ffuf gobuster \
       hashcat \
-      python3-impacket pipx \
+      python3-impacket pipx python3-dev \
       smbclient ldap-utils \
-      ruby ruby-dev gcc make \
+      ruby ruby-dev gcc make cargo rustc pkg-config libffi-dev libssl-dev \
       ncat socat openssh-client proxychains4 \
     && rm -rf /var/lib/apt/lists/*
 
 # Python tools via pipx (PEP 668 blocks raw pip on Debian bookworm).
-#   bloodhound-python = the BloodHound collector (the GUI is on your host)
-#   netexec           = modern crackmapexec; AD swiss army knife
-#   enum4linux-ng     = SMB / LDAP enumeration
-RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
-      pipx install bloodhound \
-    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
-      pipx install netexec \
-    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
-      pipx install enum4linux-ng \
+# Three install sources because not all are on PyPI:
+#   bloodhound        — BloodHound collector (PyPI: "bloodhound", v1.9+)
+#   netexec           — modern crackmapexec; AD swiss army knife (NOT on PyPI, install from git)
+#   enum4linux-ng     — SMB / LDAP enumeration (NOT on PyPI, install from git)
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install bloodhound \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install git+https://github.com/Pennyw0rth/NetExec \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install git+https://github.com/cddmp/enum4linux-ng \
     && rm -rf /root/.cache/pip
 
 # evil-winrm — Windows shell over WinRM. Ruby gem, no apt package on Debian.
@@ -139,10 +138,22 @@ RUN set -eux; \
 
 # PayloadsAllTheThings — payload reference repo. Shallow-clone keeps it ~50MB.
 # Available at /opt/PayloadsAllTheThings. Symlink to /opt/payloads for brevity.
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
-    && git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings \
+# git is already installed (we needed it for pipx-from-github above).
+RUN git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings \
     && ln -s /opt/PayloadsAllTheThings /opt/payloads \
-    && apt-get remove --purge -y git && apt-get autoremove -y
+    && rm -rf /opt/PayloadsAllTheThings/.git
+
+# Shrink image: drop build-only deps. Removed: git (clone done), ruby-dev/
+# gcc/make/python3-dev/cargo/rustc/pkg-config/libffi-dev/libssl-dev were
+# only needed during the build (pipx compiled C+Rust extensions, evil-winrm
+# gem built its native parts, PayloadsAllTheThings was cloned). Runtime
+# doesn't need any of them.
+RUN apt-get remove --purge -y \
+      git \
+      ruby-dev gcc make \
+      python3-dev cargo rustc pkg-config libffi-dev libssl-dev \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /root/.cargo
 
 # ngehe binary
 COPY --from=builder /out/ngehe /usr/local/bin/ngehe

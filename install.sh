@@ -6,18 +6,24 @@
 #   curl -fsSL https://raw.githubusercontent.com/chud-lori/ngehe/main/install.sh | sudo bash
 #   PREFIX=$HOME/.local ./install.sh           # non-root install
 #   ./install.sh --with-extras                 # also install nuclei + amass + subfinder + httpx
-#   ./install.sh --uninstall                   # remove ngehe binary (keeps extras, Go toolchain)
+#   ./install.sh --uninstall                   # remove ngehe binary (keeps extras, nmap, Go)
 #   ./install.sh --uninstall --with-extras     # also remove nuclei + amass + subfinder + httpx
+#   ./install.sh --uninstall --purge           # nuke EVERYTHING ngehe ever touched:
+#                                              #   ngehe + extras + nmap + nuclei-templates
+#                                              #   + tool config dirs + Go module cache
+#                                              #   (Go toolchain itself is left alone — see hint at end)
 
 set -euo pipefail
 
 PREFIX="${PREFIX:-/usr/local}"
 ACTION="install"
 WITH_EXTRAS=0
+PURGE=0
 for arg in "$@"; do
   case "$arg" in
     --uninstall)   ACTION="uninstall" ;;
     --with-extras) WITH_EXTRAS=1 ;;
+    --purge)       PURGE=1; WITH_EXTRAS=1 ;;   # --purge implies --with-extras
   esac
 done
 
@@ -342,10 +348,82 @@ uninstall_extras() {
     done
   done
   if [[ "${#note_paths[@]}" -gt 0 ]]; then
-    log "config / template dirs left in place (delete if you want them gone):"
+    log "config / template dirs left in place (delete if you want them gone, or re-run with --purge):"
     for p in "${note_paths[@]}"; do
       log "  $p"
     done
+  fi
+}
+
+# purge_all_traces — aggressive cleanup invoked by `--uninstall --purge`.
+# Removes everything ngehe ever installed or polluted, except the Go toolchain
+# itself (which the user installed independently — see hint printed at end).
+purge_all_traces() {
+  local pm="$1"
+  log "PURGE mode — removing ALL ngehe-related state from this host."
+
+  # 1. Remove the nmap package we auto-installed during base install.
+  if command -v nmap >/dev/null 2>&1; then
+    log "removing nmap…"
+    case "$pm" in
+      apt)    set +e; DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge nmap; set -e ;;
+      brew)
+        if [[ $EUID -ne 0 ]]; then
+          brew uninstall nmap 2>/dev/null || warn "nmap uninstall via brew failed"
+        else
+          warn "brew refuses root — remove nmap manually: brew uninstall nmap"
+        fi
+        ;;
+      dnf)    set +e; dnf remove -y nmap; set -e ;;
+      yum)    set +e; yum remove -y nmap; set -e ;;
+      pacman) set +e; pacman -Rns --noconfirm nmap; set -e ;;
+      apk)    set +e; apk del nmap; set -e ;;
+      *) warn "package manager unknown — remove nmap manually" ;;
+    esac
+  fi
+
+  # 2. Delete the residual config / template directories listed by uninstall_extras.
+  local home_dirs=("$HOME")
+  if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+    local sudo_home
+    sudo_home=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+    [[ -n "$sudo_home" && "$sudo_home" != "$HOME" ]] && home_dirs+=("$sudo_home")
+  fi
+  for h in "${home_dirs[@]}"; do
+    for d in "$h/nuclei-templates" "$h/.config/nuclei" "$h/.config/subfinder" "$h/.config/amass" "$h/.config/httpx"; do
+      if [[ -e "$d" ]]; then
+        rm -rf "$d" && log "removed $d"
+      fi
+    done
+  done
+
+  # 3. Clear the Go module cache. ngehe doesn't need it post-uninstall, and
+  # purging here cleans up the polluted entries from any failed go-install
+  # attempts (e.g. the vulncheck-oss/go-exploit webshell fixtures CWPP flags).
+  if command -v go >/dev/null 2>&1; then
+    log "running 'go clean -modcache' (frees a few GB; safe — Go re-downloads on next build)…"
+    if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+      sudo -u "$SUDO_USER" go clean -modcache 2>&1 | sed 's/^/  /' || warn "go clean -modcache failed for $SUDO_USER"
+    else
+      go clean -modcache 2>&1 | sed 's/^/  /' || warn "go clean -modcache failed"
+    fi
+    # Also nuke root's module cache if present (root would've populated it on the earlier sudo install).
+    if [[ -d /root/go/pkg/mod ]]; then
+      rm -rf /root/go/pkg/mod && log "removed /root/go/pkg/mod"
+    fi
+  fi
+
+  # 4. Hint about Go toolchain — never auto-remove; user installed it themselves.
+  echo
+  log "Done. The Go toolchain was NOT removed (ngehe did not install it)."
+  if command -v go >/dev/null 2>&1; then
+    log "If you want Go gone too, run one of:"
+    case "$pm" in
+      apt)    log "  sudo apt remove --purge golang-go golang   # if installed via apt" ;;
+      brew)   log "  brew uninstall go" ;;
+      *)      log "  remove via your package manager, or 'sudo rm -rf /usr/local/go' if you used the tarball install" ;;
+    esac
+    log "  sudo rm -rf /usr/local/go ~/go                # tarball install + leftover GOPATH"
   fi
 }
 
@@ -357,8 +435,12 @@ main() {
       local pm
       pm="$(detect_pm)"
       uninstall_extras "$pm"
+      if [[ "$PURGE" -eq 1 ]]; then
+        purge_all_traces "$pm"
+      fi
     else
       log "(extras kept — re-run with --uninstall --with-extras to also remove nuclei, amass, subfinder, httpx)"
+      log "(for a full wipe including nmap + template caches + Go module cache, use --uninstall --purge)"
     fi
     return
   fi

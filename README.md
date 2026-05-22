@@ -196,11 +196,15 @@ PREFIX=$HOME/.local ./install.sh --with-extras
 Uninstall:
 
 ```bash
-sudo ./install.sh --uninstall                   # remove ngehe only
+sudo ./install.sh --uninstall                   # ngehe binary only
 sudo ./install.sh --uninstall --with-extras     # also remove nuclei + amass + subfinder + httpx
+sudo ./install.sh --uninstall --purge           # nuke EVERYTHING: above + nmap + ~/nuclei-templates
+                                                # + tool config dirs + Go module cache
 ```
 
-The extras-uninstaller is conservative: it uses apt/brew to remove what apt/brew installed, then cleans up `~/go/bin/{nuclei,amass,subfinder,httpx}` and `~/.local/bin/*` from `go install` runs. Config / template dirs (e.g. `~/nuclei-templates`) are listed but kept — delete them manually if you want them gone.
+The plain `--uninstall` is conservative: it only removes the `ngehe` binary. `--with-extras` also removes the four scanner packages (apt remove / brew uninstall / `~/go/bin/*` / `~/.local/bin/*`) but keeps config dirs and the nuclei template cache.
+
+`--purge` is the full wipe — drops nmap, deletes `~/nuclei-templates` (~1GB), removes config dirs in `~/.config/{nuclei,subfinder,amass,httpx}`, runs `go clean -modcache` to clear any leftover modules (including the `vulncheck-oss/go-exploit` webshell fixtures that some scanners flag). The Go toolchain itself is left alone (ngehe never installed it); the purge step prints the apt/brew/tarball-removal commands if you want to remove Go too.
 
 Manual:
 

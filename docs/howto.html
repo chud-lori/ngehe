@@ -280,9 +280,15 @@
 <pre><span class="ok">$</span> ngehe doctor                     <span class="cmt"># lists every dep with ✓/✗</span></pre>
 
       <h3>Uninstall</h3>
-<pre><span class="ok">$</span> sudo ./install.sh --uninstall                   <span class="cmt"># remove ngehe binary only</span>
-<span class="ok">$</span> sudo ./install.sh --uninstall --with-extras     <span class="cmt"># also remove the four extras</span></pre>
-      <p>The extras-uninstaller pulls apt/brew packages it installed, then sweeps <code>~/go/bin</code> + <code>~/.local/bin</code> for any binaries from <code>go install</code>. Config / template directories (<code>~/nuclei-templates</code>, <code>~/.config/subfinder</code>, etc.) are listed but kept — delete them manually if you want them gone.</p>
+<pre><span class="ok">$</span> sudo ./install.sh --uninstall                   <span class="cmt"># ngehe binary only</span>
+<span class="ok">$</span> sudo ./install.sh --uninstall --with-extras     <span class="cmt"># also the four extras</span>
+<span class="ok">$</span> sudo ./install.sh --uninstall --purge           <span class="cmt"># nuke EVERYTHING ngehe touched</span></pre>
+      <p>The three tiers:</p>
+      <ul>
+        <li><strong><code>--uninstall</code></strong>: removes the <code>ngehe</code> binary from <code>$PREFIX/bin</code>. Extras stay.</li>
+        <li><strong><code>--uninstall --with-extras</code></strong>: also drops nuclei/amass/subfinder/httpx via apt/brew, plus any <code>~/go/bin</code> + <code>~/.local/bin</code> leftovers. Template/config dirs are listed but kept.</li>
+        <li><strong><code>--uninstall --purge</code></strong>: full wipe. Adds: removes <code>nmap</code>, deletes <code>~/nuclei-templates</code> (~1GB), wipes <code>~/.config/{nuclei,subfinder,amass,httpx}</code>, runs <code>go clean -modcache</code> to clear any leftover modules (including the <code>vulncheck-oss/go-exploit</code> webshell fixtures that some EDRs flag). The Go toolchain is left alone (ngehe never installed it); the purge step prints the apt/brew/tarball-removal commands if you want to drop Go too.</li>
+      </ul>
 
       <h3><code>ngehe surface &lt;domain&gt;</code> — attack-surface map</h3>
       <p>Single command that chains the four tools:</p>

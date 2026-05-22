@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# ngehe — convenience wrapper around `docker run` that hides the boilerplate
+# (volume mounts, network mode, template persistence). Behaves like the
+# native ngehe binary:
+#
+#   ./scripts/ngehe doctor
+#   ./scripts/ngehe surface -d example.com --nuclei
+#   ./scripts/ngehe box --target 10.10.11.5 --markdown box.md
+#
+# Drop a shell into the container instead:
+#   ./scripts/ngehe --shell
+#
+# Override the image with NGEHE_IMAGE:
+#   NGEHE_IMAGE=ngehe:dev ./scripts/ngehe surface -d example.com
+#
+# Override the docker binary (e.g. for podman):
+#   DOCKER=podman ./scripts/ngehe surface -d example.com
+
+set -euo pipefail
+
+DOCKER="${DOCKER:-docker}"
+NGEHE_IMAGE="${NGEHE_IMAGE:-ghcr.io/chud-lori/ngehe:latest}"
+
+if ! command -v "$DOCKER" >/dev/null 2>&1; then
+  echo "error: '$DOCKER' not found on PATH. Install Docker Desktop / docker-ce / podman." >&2
+  exit 1
+fi
+
+# Pull image if not present (one-time on first run).
+if ! "$DOCKER" image inspect "$NGEHE_IMAGE" >/dev/null 2>&1; then
+  echo "ngehe: pulling $NGEHE_IMAGE (one-time, ~1.5GB)…" >&2
+  "$DOCKER" pull "$NGEHE_IMAGE"
+fi
+
+# Persistent named volumes for templates + tool configs.
+VOL_TEMPLATES="ngehe-nuclei-templates"
+VOL_CONFIG="ngehe-config"
+
+# --shell escape hatch.
+if [[ "${1:-}" == "--shell" ]]; then
+  shift
+  exec "$DOCKER" run --rm -it \
+    --network host \
+    --entrypoint bash \
+    -v "$(pwd):/work" \
+    -v "${VOL_TEMPLATES}:/root/nuclei-templates" \
+    -v "${VOL_CONFIG}:/root/.config" \
+    "$NGEHE_IMAGE" "$@"
+fi
+
+# Default: run ngehe with arguments.
+# -it for ANSI colors + interactive ngehe progress output. -i (no -t)
+# when stdin is piped from another command.
+TTY_FLAGS="-it"
+if [[ ! -t 0 ]]; then
+  TTY_FLAGS="-i"
+fi
+
+exec "$DOCKER" run --rm $TTY_FLAGS \
+  --network host \
+  -v "$(pwd):/work" \
+  -v "${VOL_TEMPLATES}:/root/nuclei-templates" \
+  -v "${VOL_CONFIG}:/root/.config" \
+  "$NGEHE_IMAGE" "$@"

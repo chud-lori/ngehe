@@ -176,6 +176,48 @@ See [`internal/wordlist/NOTICE.md`](internal/wordlist/NOTICE.md) for attribution
 
 Each detector is a separate package under `internal/detector/` and `internal/recon/`. They share `httpx`, `fuzz`, `oracle`, `finding`, and `wordlist` utilities.
 
+## Container
+
+Don't want to install on your host? Use the bundled Docker image instead. Works on Linux, macOS (Apple Silicon + Intel), Windows / WSL — same image, no platform-specific compile headaches.
+
+```bash
+# Pull + scan in one go (the wrapper handles mounts/network/templates).
+./scripts/ngehe surface -d example.com --nuclei
+./scripts/ngehe box --target 10.10.11.5 --markdown box.md
+
+# Drop into a shell with every tool on PATH:
+./scripts/ngehe --shell
+```
+
+The image is ~1.5GB and bundles **everything**: ngehe + nuclei (with templates pre-baked) + amass + subfinder + httpx + nmap + sqlmap + hashcat + impacket + bloodhound-python + the SecLists wordlists. No `--with-extras`, no `nuclei -update-templates`, no `apt install` — pull once and every command works.
+
+Build locally:
+
+```bash
+docker build -t ngehe:dev .
+NGEHE_IMAGE=ngehe:dev ./scripts/ngehe doctor
+```
+
+Or use docker compose:
+
+```bash
+docker compose run --rm ngehe surface -d example.com
+```
+
+Raw `docker run` (skip the wrapper):
+
+```bash
+docker run --rm -it \
+  --network host \
+  -v "$PWD:/work" \
+  -v ngehe-nuclei-templates:/root/nuclei-templates \
+  ghcr.io/chud-lori/ngehe:latest surface -d example.com --nuclei
+```
+
+**macOS caveat:** Docker Desktop's `--network host` runs through a VM bridge. Scanning your own LAN works (RFC1918 reachable), but a few edge cases (raw-socket nmap modes) need `--cap-add=NET_RAW --cap-add=NET_ADMIN`. ngehe uses TCP connect scans by default, so the basic flow just works.
+
+See [Dockerfile](Dockerfile) for build args (template skip, version pinning) and [compose.yaml](compose.yaml) for the canonical mount layout.
+
 ## Install
 
 One-line installer (detects brew/apt/dnf/pacman/apk, installs `nmap`, builds + drops ngehe in `/usr/local/bin`):

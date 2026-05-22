@@ -205,7 +205,8 @@
     <aside class="toc">
       <h4>On this page</h4>
       <ol>
-        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#container">Run as container</a></li>
+        <li><a href="#prerequisites">Prerequisites (host)</a></li>
         <li><a href="#kali">Kali tool integrations</a></li>
         <li><a href="#workflow">HTB / Box workflow</a></li>
         <li><a href="#chain">From finding to box</a></li>
@@ -232,7 +233,61 @@
         <strong>Authorized use only.</strong> ngehe sends real attack payloads (SQLi markers, command-injection probes, traversal sequences, JWT manipulation, password sprays). Use only against systems you own, have written permission to test, or that are explicitly designed as CTF / HTB targets.
       </div>
 
-      <h2 id="prerequisites">Prerequisites</h2>
+      <h2 id="container">Run as container</h2>
+      <p>If you don't want to install on your host — or you're on Apple Silicon, locked-down corporate macOS, or a server you can't pollute — use the bundled Docker image. Same image works on Linux, macOS (amd64 + arm64), Windows/WSL.</p>
+
+      <p>The image is ~1.5GB and bundles <strong>every</strong> ngehe dependency, every Kali integration, and every handoff tool the per-finding playbook references:</p>
+      <ul>
+        <li>ngehe + nuclei (with templates pre-baked, no first-run download) + amass + subfinder + httpx</li>
+        <li>nmap, sqlmap, hashcat, jq, dnsutils</li>
+        <li>python3-impacket (Get*NPUsers, GetUserSPNs, secretsdump, ticketer, ...)</li>
+        <li>bloodhound-python (the collector; ingest the JSON into BloodHound CE on your host)</li>
+      </ul>
+
+      <h3>One-shot scans (the wrapper)</h3>
+<pre><span class="ok">$</span> ./scripts/ngehe doctor
+<span class="ok">$</span> ./scripts/ngehe surface -d example.com --nuclei
+<span class="ok">$</span> ./scripts/ngehe scan --har capture.har --config ngehe.yaml
+<span class="ok">$</span> ./scripts/ngehe box --target 10.10.11.5 --markdown box.md</pre>
+
+      <p>The wrapper mounts your current directory at <code>/work</code> (so HAR files / config / output land where you'd expect), uses <code>--network host</code> for nmap, and persists nuclei templates + tool configs in named docker volumes between runs.</p>
+
+      <h3>Interactive shell</h3>
+<pre><span class="ok">$</span> ./scripts/ngehe --shell
+root@container:/work# nuclei -version
+root@container:/work# impacket-GetNPUsers -h
+root@container:/work# hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt</pre>
+
+      <h3>Raw docker run (skip the wrapper)</h3>
+<pre><span class="ok">$</span> docker run --rm -it \
+    --network host \
+    -v <span class="str">"$PWD:/work"</span> \
+    -v ngehe-nuclei-templates:/root/nuclei-templates \
+    ghcr.io/chud-lori/ngehe:latest surface -d example.com --nuclei</pre>
+
+      <h3>docker compose</h3>
+<pre><span class="ok">$</span> docker compose run --rm ngehe surface -d example.com --nuclei
+<span class="ok">$</span> docker compose run --rm ngehe --shell</pre>
+
+      <h3>Build locally</h3>
+<pre><span class="ok">$</span> docker build -t ngehe:dev .
+<span class="ok">$</span> NGEHE_IMAGE=ngehe:dev ./scripts/ngehe doctor
+
+<span class="cmt"># Or skip the ~1GB template pre-bake for a smaller dev image:</span>
+<span class="ok">$</span> docker build --build-arg NO_TEMPLATES=1 -t ngehe:dev-slim .
+
+<span class="cmt"># Multi-arch (linux/amd64 + linux/arm64):</span>
+<span class="ok">$</span> docker buildx build --platform linux/amd64,linux/arm64 -t ngehe:dev --load .</pre>
+
+      <div class="callout warn">
+        <strong>macOS caveat.</strong> Docker Desktop's <code>--network host</code> goes through a VM bridge. RFC1918 / LAN targets reachable from your Mac are reachable from the container, but raw-socket nmap modes (<code>-sS</code> SYN scan) need <code>--cap-add=NET_RAW --cap-add=NET_ADMIN</code> on the docker run. ngehe uses TCP-connect (<code>-sT</code>) by default, so the basic flow works without extra caps.
+      </div>
+
+      <div class="callout info">
+        <strong>When to use container vs host.</strong> Use the container for Mac/Windows, anywhere you can't / won't install nmap + Python tools globally, or anytime you want isolation. Use a host install when you need to integrate ngehe with other host tools (e.g. piping output into a long-running Burp Suite session) or when you want the absolute lowest overhead during long engagements.
+      </div>
+
+      <h2 id="prerequisites">Prerequisites (host install)</h2>
       <ul>
         <li><strong>Go 1.22+</strong> to build from source.</li>
         <li><strong>nmap</strong> on PATH (<code>ngehe box</code> shells out to it).</li>

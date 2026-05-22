@@ -218,6 +218,7 @@
       <li><a href="#features">Features</a></li>
       <li><a href="#commands">Commands</a></li>
       <li><a href="#detectors">Detectors</a></li>
+      <li><a href="#container">Container</a></li>
       <li><a href="#install">Install</a></li>
       <li><a href="howto.html">HOWTO</a></li>
       <li><a href="https://github.com/chud-lori/ngehe">GitHub</a></li>
@@ -482,10 +483,37 @@
   </div>
 </section>
 
+<section id="container">
+  <div class="container">
+    <h2>Container</h2>
+    <p class="section-sub">Don't want to install on your host? The bundled Docker image runs on Linux, macOS (Apple Silicon + Intel), and Windows/WSL — same image, no platform-specific compile pain.</p>
+
+    <div class="codecard">
+      <div class="filename">one-shot scan via the wrapper</div>
+<pre><span class="ok">$</span> ./scripts/ngehe surface -d example.com --nuclei
+<span class="ok">$</span> ./scripts/ngehe box --target 10.10.11.5 --markdown box.md
+<span class="ok">$</span> ./scripts/ngehe --shell                    <span class="cmt"># interactive shell with every tool on PATH</span></pre>
+    </div>
+
+    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">
+      ~1.5GB image, bundles <strong>everything</strong>: ngehe + nuclei (templates pre-baked) + amass + subfinder + httpx + nmap + sqlmap + hashcat + impacket + bloodhound-python + SecLists. No <code>--with-extras</code>, no template download, no <code>apt install</code>. Pull once, every command works.
+    </p>
+
+    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Or raw <code>docker run</code>:</p>
+<pre><span class="ok">$</span> docker run --rm -it \
+    --network host \
+    -v <span class="str">"$PWD:/work"</span> \
+    -v ngehe-nuclei-templates:/root/nuclei-templates \
+    ghcr.io/chud-lori/ngehe:latest surface -d example.com --nuclei</pre>
+
+    <div class="callout"><strong>macOS note:</strong> Docker Desktop's <code>--network host</code> runs through a VM bridge — LAN/RFC1918 targets are reachable, but raw-socket nmap modes need <code>--cap-add=NET_RAW</code>. ngehe uses TCP-connect scans by default, so the basic flow works as-is.</div>
+  </div>
+</section>
+
 <section id="install">
   <div class="container">
-    <h2>Install</h2>
-    <p class="section-sub">Detects brew / apt / dnf / pacman / apk, installs <code>nmap</code>, builds, and drops <code>ngehe</code> in <code>/usr/local/bin</code>.</p>
+    <h2>Install (host)</h2>
+    <p class="section-sub">Prefer to install on the host? Detects brew / apt / dnf / pacman / apk, installs <code>nmap</code>, builds, and drops <code>ngehe</code> in <code>/usr/local/bin</code>.</p>
 
     <div class="codecard">
       <div class="filename">one-line install</div>

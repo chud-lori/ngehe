@@ -1,0 +1,50 @@
+# Build artifacts
+/ngehe
+/ngehe-*
+/examples/vuln-api/vuln-api
+/examples/vuln-api/vuln-api-*
+
+# Scan output (these are user-generated, not source)
+*.jsonl
+*.har
+*.md
+!README.md
+!HOWTO.md
+!docs/**/*.md
+!internal/wordlist/NOTICE.md
+
+# Local config (often contains real tokens)
+ngehe.yaml
+*.local.yaml
+.env
+.env.*
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Go workspace files we don't want in the build context
+go.work
+go.work.sum
+vendor/
+
+# Docker-side bits
+Dockerfile
+.dockerignore
+compose.yaml
+docker-compose.yaml
+.github/
+docs/_config.yml
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Misc
+*.log
+*.tmp
+/tmp/

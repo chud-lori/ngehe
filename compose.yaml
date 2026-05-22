@@ -1,0 +1,29 @@
+services:
+  ngehe:
+    image: ghcr.io/chud-lori/ngehe:latest
+    # Local build:
+    #   docker compose build
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # --network host gives nmap real TCP connect access to the host
+    # network namespace. On macOS/Windows, Docker Desktop's "host" network
+    # is a VM bridge — internal/RFC1918 targets are still reachable, but
+    # if you're scanning your own LAN you may need a different setup
+    # (use --add-host or expose specific routes).
+    network_mode: host
+    stdin_open: true
+    tty: true
+    # Mount CWD as /work so HAR files, config, output land in the host's
+    # current directory.
+    volumes:
+      - ./:/work
+      # Persist nuclei templates between runs (the image pre-bakes them
+      # but `nuclei -update-templates` will refresh into this volume).
+      - ngehe-nuclei-templates:/root/nuclei-templates
+      # Persist tool configs (subfinder/amass/httpx API keys, etc.)
+      - ngehe-config:/root/.config
+
+volumes:
+  ngehe-nuclei-templates:
+  ngehe-config:

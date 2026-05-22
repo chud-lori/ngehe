@@ -33,6 +33,23 @@ Point this at a URL you've never seen — an HTB IP, a freshly-discovered subdom
 ngehe recon --target http://10.10.11.5 --markdown recon.md
 ```
 
+### `ngehe surface <domain>`
+
+Subdomain enumeration + live-host probing using the de-facto Kali tools: **amass** (OWASP passive), **subfinder** (fast passive), and **httpx** (probe + tech fingerprint). With `--nuclei`, also runs projectdiscovery's template scanner against the live hosts.
+
+```bash
+ngehe surface --domain target.htb --markdown surface.md
+ngehe surface --domain target.htb --nuclei         # add CVE / misconfig templates
+```
+
+Each tool is opt-out via `--no-amass` / `--no-subfinder` / `--no-httpx`; missing binaries are skipped (no hard failure). Install them with `./install.sh --with-extras`. Live URLs are printed to stdout at the end — chain into `ngehe recon` / `ngehe scan` / `ngehe box`:
+
+```bash
+ngehe surface -d target.htb | while read url; do
+  ngehe scan --target "$url" --config ngehe.yaml
+done
+```
+
 ### `ngehe scan`
 
 Three input modes — pick whichever you have.
@@ -48,7 +65,25 @@ ngehe scan --openapi openapi.yaml --base https://api.example.com --config ngehe.
 # common parameter names (id, q, file, path, url, cmd, host, msg, ...).
 # Lower signal than HAR (we're guessing params), but works from just a URL.
 ngehe scan --target http://10.10.11.5 --config ngehe.yaml --markdown findings.md
+
+# Add nuclei templates (CVEs, default-config, exposures) on top of the native detectors:
+ngehe scan --har capture.har --config ngehe.yaml --nuclei --markdown findings.md
 ```
+
+## Kali-tool Integrations
+
+ngehe shells out to a handful of best-of-breed Kali tools when present on PATH. Each integration emits findings into the same JSONL with `source:` set so you can filter native vs upstream.
+
+| Tool | Module / flag | Purpose |
+|---|---|---|
+| **nuclei** (projectdiscovery) | `scan --nuclei`, `box --nuclei`, `surface --nuclei` | Template-based scanner — thousands of community CVE / misconfig / exposure templates |
+| **amass** (OWASP) | `ngehe surface` | Comprehensive passive subdomain enumeration |
+| **subfinder** (projectdiscovery) | `ngehe surface` | Fast passive subdomain enumeration |
+| **httpx** (projectdiscovery) | `ngehe surface` | Probe hostnames for live HTTP + tech fingerprint |
+
+All four install via `./install.sh --with-extras` (uses apt on Kali / Debian, brew on macOS, `go install` as fallback). They're opt-in: if a binary is missing, ngehe prints a hint and skips it without failing the run.
+
+For deeper post-finding exploitation, install separately: `hashcat`, `sqlmap`, `bloodhound`, `impacket` — these are documented as next-step handoffs in the per-finding `next` field.
 
 ## Non-Web Service Scanners (ngehe box)
 
@@ -144,13 +179,14 @@ One-line installer (detects brew/apt/dnf/pacman/apk, installs `nmap`, builds + d
 ```bash
 git clone https://github.com/chud-lori/ngehe.git
 cd ngehe
-sudo ./install.sh
+sudo ./install.sh                         # base install (ngehe + nmap)
+sudo ./install.sh --with-extras           # also install nuclei + amass + subfinder + httpx
 ```
 
 Non-root install to `~/.local/bin`:
 
 ```bash
-PREFIX=$HOME/.local ./install.sh
+PREFIX=$HOME/.local ./install.sh --with-extras
 ```
 
 Manual:

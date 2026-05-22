@@ -16,6 +16,10 @@ type dep struct {
 
 var deps = []dep{
 	{"nmap", true, "required by ngehe box (port discovery + service detection)"},
+	{"nuclei", false, "extra — template-based scanner (CVEs, default-config, exposures). Enables --nuclei on scan/box. Install: ./install.sh --with-extras"},
+	{"amass", false, "extra — OWASP passive subdomain enumeration. Used by ngehe surface. Install: ./install.sh --with-extras"},
+	{"subfinder", false, "extra — fast passive subdomain enumeration. Used by ngehe surface. Install: ./install.sh --with-extras"},
+	{"httpx", false, "extra — live-host probe + tech fingerprint. Used by ngehe surface. Install: ./install.sh --with-extras"},
 	{"hashcat", false, "recommended — crack JWT / krb5asrep (-m 18200) / krb5tgs (-m 13100) hashes from ngehe"},
 	{"sqlmap", false, "recommended — deeper SQLi exploitation after ngehe flags sqli-error-based / sqli-time-based"},
 	{"bloodhound", false, "recommended — ingest ngehe's BloodHound JSON output for AD attack-path analysis"},

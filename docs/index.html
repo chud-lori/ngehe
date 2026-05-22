@@ -272,24 +272,37 @@
         <h3>SecLists embedded</h3>
         <p>common.txt (4750), quickhits.txt (2567), default-passwords.csv (2876) — bundled via <code>go:embed</code>. No network fetches at scan time.</p>
       </div>
+      <div class="card">
+        <h3>Kali tool integrations</h3>
+        <p>Shells out to <strong>nuclei</strong>, <strong>amass</strong>, <strong>subfinder</strong>, <strong>httpx</strong> when present. <code>ngehe surface</code> maps subdomains end-to-end; <code>--nuclei</code> adds template-based CVE coverage to <code>scan</code> / <code>box</code>.</p>
+      </div>
     </div>
   </div>
 </section>
 
 <section id="commands">
   <div class="container">
-    <h2>Three commands</h2>
+    <h2>Four commands</h2>
     <p class="section-sub">Pick the entry point that matches what you have.</p>
 
     <div class="grid-3">
 
       <div class="card">
         <h3><code>ngehe box</code></h3>
-        <p>"I just got an HTB IP." nmap + every per-service module + web recon — full spectrum.</p>
+        <p>"I just got an HTB IP." nmap + every per-service module + web recon — full spectrum. <code>--nuclei</code> adds template scan.</p>
         <pre><span class="ok">$</span> ngehe box \
     --target <span class="str">10.10.11.5</span> \
     --domain <span class="str">target.htb</span> \
     --markdown <span class="str">box.md</span></pre>
+      </div>
+
+      <div class="card">
+        <h3><code>ngehe surface</code></h3>
+        <p>Subdomain enum + live-host probe. Chains amass + subfinder + httpx (+ optional nuclei).</p>
+        <pre><span class="ok">$</span> ngehe surface \
+    --domain <span class="str">target.htb</span> \
+    --nuclei \
+    --markdown <span class="str">surface.md</span></pre>
       </div>
 
       <div class="card">
@@ -302,10 +315,11 @@
 
       <div class="card">
         <h3><code>ngehe scan</code></h3>
-        <p>Active OWASP detectors. Takes HAR (best signal), OpenAPI spec, or just a URL.</p>
+        <p>Active OWASP detectors. Takes HAR (best signal), OpenAPI spec, or just a URL. <code>--nuclei</code> bolts on template scan.</p>
         <pre><span class="ok">$</span> ngehe scan \
     --har <span class="str">capture.har</span> \
     --config <span class="str">ngehe.yaml</span> \
+    --nuclei \
     --markdown <span class="str">findings.md</span></pre>
       </div>
 
@@ -366,6 +380,30 @@
         </tbody>
       </table>
     </div>
+  </div>
+</section>
+
+<section id="integrations">
+  <div class="container">
+    <h2>Kali tool integrations</h2>
+    <p class="section-sub">When these binaries are on PATH, ngehe shells out to them and writes findings into the same JSONL with <code>source:</code> set. Install all four with <code>./install.sh --with-extras</code>.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:160px">Tool</th><th style="width:240px">Used by</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>nuclei</strong></td><td><code>scan --nuclei</code>, <code>box --nuclei</code>, <code>surface --nuclei</code></td><td>Template-based scanner. Thousands of community CVE / default-config / exposure templates. Complements ngehe's hand-written detectors with breadth.</td></tr>
+          <tr><td><strong>amass</strong> (OWASP)</td><td><code>ngehe surface</code></td><td>Comprehensive passive subdomain enumeration. Slower than subfinder but reaches more sources.</td></tr>
+          <tr><td><strong>subfinder</strong></td><td><code>ngehe surface</code></td><td>Fast passive subdomain enumeration across many sources (CRT, VT, Shodan, ...).</td></tr>
+          <tr><td><strong>httpx</strong></td><td><code>ngehe surface</code></td><td>Probe hostnames for live HTTP. Captures status / title / webserver / tech fingerprint.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Each integration is opt-in. If a binary is missing, ngehe prints a hint and skips it without failing the run. Filter native vs upstream findings with jq:</p>
+    <pre><span class="ok">$</span> jq <span class="str">'select(.source == "nuclei")'</span> findings.jsonl</pre>
   </div>
 </section>
 
@@ -453,11 +491,12 @@
       <div class="filename">one-line install</div>
 <pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
 <span class="ok">$</span> cd ngehe
-<span class="ok">$</span> sudo ./install.sh</pre>
+<span class="ok">$</span> sudo ./install.sh                       <span class="cmt"># base: ngehe + nmap</span>
+<span class="ok">$</span> sudo ./install.sh --with-extras         <span class="cmt"># also nuclei + amass + subfinder + httpx</span></pre>
     </div>
 
     <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Non-root install to <code>~/.local/bin</code>:</p>
-    <pre><span class="ok">$</span> PREFIX=$HOME/.local ./install.sh</pre>
+    <pre><span class="ok">$</span> PREFIX=$HOME/.local ./install.sh --with-extras</pre>
 
     <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Verify deps:</p>
     <pre><span class="ok">$</span> ngehe doctor

@@ -206,6 +206,7 @@
       <h4>On this page</h4>
       <ol>
         <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#kali">Kali tool integrations</a></li>
         <li><a href="#workflow">HTB / Box workflow</a></li>
         <li><a href="#chain">From finding to box</a></li>
         <li><a href="#reading">Reading findings</a></li>
@@ -255,6 +256,60 @@
         <li><strong>BloodHound</strong> — ingest ngehe's <code>users.json</code> / <code>computers.json</code> / <code>groups.json</code> for AD path analysis.</li>
         <li><strong>impacket</strong> — heavier AS-REP / Kerberoast / NTLM relay than ngehe's MVP versions.</li>
       </ul>
+
+      <h2 id="kali">Kali tool integrations</h2>
+      <p>ngehe shells out to a handful of community tools when they're on PATH. Each integration writes into the same JSONL with <code>source:</code> set, so you can filter native vs upstream findings:</p>
+<pre><span class="ok">$</span> jq -r <span class="str">'select(.source == "nuclei") | "[\(.severity)] \(.rule)\t\(.url)"'</span> findings.jsonl</pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:140px">Tool</th><th style="width:200px">Module / flag</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><strong>nuclei</strong></td><td><code>scan --nuclei</code><br/><code>box --nuclei</code><br/><code>surface --nuclei</code></td><td>Template-based scanner — thousands of community CVE / default-config / exposure templates. Complements ngehe's hand-written detectors with breadth.</td></tr>
+            <tr><td><strong>amass</strong></td><td><code>ngehe surface</code></td><td>OWASP comprehensive passive subdomain enumeration (slow but thorough).</td></tr>
+            <tr><td><strong>subfinder</strong></td><td><code>ngehe surface</code></td><td>Fast passive subdomain enumeration across many sources (CRT, VirusTotal, Shodan, etc.).</td></tr>
+            <tr><td><strong>httpx</strong></td><td><code>ngehe surface</code></td><td>Probe hostnames for live HTTP, capture status / title / webserver / tech fingerprint.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Install the extras</h3>
+<pre><span class="ok">$</span> sudo ./install.sh --with-extras   <span class="cmt"># nuclei + amass + subfinder + httpx</span></pre>
+      <p>Uses apt on Kali / Debian, brew on macOS, <code>go install</code> as fallback. Each tool is opt-in; if a binary is missing, ngehe prints a hint and skips it without failing.</p>
+      <p>Verify:</p>
+<pre><span class="ok">$</span> ngehe doctor                     <span class="cmt"># lists every dep with ✓/✗</span></pre>
+
+      <h3><code>ngehe surface &lt;domain&gt;</code> — attack-surface map</h3>
+      <p>Single command that chains the four tools:</p>
+<pre><span class="ok">$</span> ngehe surface --domain target.htb --markdown surface.md
+<span class="ok">$</span> ngehe surface -d target.htb --nuclei            <span class="cmt"># add CVE template scan</span></pre>
+
+      <p>Pipeline inside <code>surface</code>:</p>
+      <ol>
+        <li><code>amass enum -passive -d &lt;domain&gt;</code> → JSON subdomain list</li>
+        <li><code>subfinder -d &lt;domain&gt; -silent</code> → fast passive enum</li>
+        <li>Dedupe + sort hostnames</li>
+        <li><code>httpx -json -tech-detect</code> against dedup'd list → live URLs + tech</li>
+        <li>(optional) <code>nuclei -jsonl</code> against live URLs</li>
+      </ol>
+
+      <p>Live URLs print to stdout so you can pipe them into the next stage:</p>
+<pre><span class="ok">$</span> ngehe surface -d target.htb --no-amass | while read url; do
+    ngehe scan --target <span class="str">"$url"</span> --config ngehe.yaml
+  done</pre>
+
+      <p>Opt-out flags if you only want a subset: <code>--no-amass</code>, <code>--no-subfinder</code>, <code>--no-httpx</code>.</p>
+
+      <h3>Adding nuclei to <code>scan</code> / <code>box</code></h3>
+      <p>The <code>--nuclei</code> flag attaches a nuclei pass after ngehe's native detectors finish. ngehe collapses captured requests to one URL per origin so nuclei isn't asked to scan thousands of duplicates:</p>
+<pre><span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml --nuclei --markdown findings.md
+<span class="ok">$</span> ngehe box --target 10.10.11.5 --nuclei --markdown box.md</pre>
+
+      <p>Nuclei findings appear in the same JSONL with <code>rule: nuclei-&lt;template-id&gt;</code> and <code>source: nuclei</code>. Each carries a <code>next</code> field with the reproducing <code>curl</code> command nuclei emits.</p>
+
+      <div class="callout info">
+        <strong>When to skip nuclei.</strong> If you're under time pressure or scanning a small target, nuclei adds 5–20 minutes. The native ngehe detectors are tuned for HTB-style boxes; nuclei shines on broader engagements where breadth-of-CVE-coverage matters more than depth.
+      </div>
 
       <h2 id="workflow">The HTB / box workflow</h2>
       <p>This is the order ngehe is designed to run in for a fresh target.</p>

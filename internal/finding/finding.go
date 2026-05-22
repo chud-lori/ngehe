@@ -26,6 +26,7 @@ type Finding struct {
 	Evidence       string   `json:"evidence,omitempty"`
 	Why            string   `json:"why"`
 	Next           string   `json:"next,omitempty"` // exploit-chain hint, populated from playbook
+	Source         string   `json:"source,omitempty"` // upstream tool name (nuclei, amass, subfinder, httpx); empty = native ngehe
 }
 
 func SevRank(s Severity) int {

@@ -4,14 +4,21 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/chud-lori/ngehe/main/install.sh | sudo bash
-#   PREFIX=$HOME/.local ./install.sh        # non-root install
-#   ./install.sh --uninstall                # remove ngehe (keeps Go toolchain)
+#   PREFIX=$HOME/.local ./install.sh           # non-root install
+#   ./install.sh --with-extras                 # also install nuclei + amass + subfinder + httpx
+#   ./install.sh --uninstall                   # remove ngehe (keeps Go toolchain)
 
 set -euo pipefail
 
 PREFIX="${PREFIX:-/usr/local}"
 ACTION="install"
-[[ "${1:-}" == "--uninstall" ]] && ACTION="uninstall"
+WITH_EXTRAS=0
+for arg in "$@"; do
+  case "$arg" in
+    --uninstall)   ACTION="uninstall" ;;
+    --with-extras) WITH_EXTRAS=1 ;;
+  esac
+done
 
 log()  { printf '\033[1;34m[ngehe]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[ngehe]\033[0m %s\n' "$*" >&2; }
@@ -77,6 +84,57 @@ ensure_go() {
   die "Go is required for installation."
 }
 
+install_extras() {
+  local pm="$1"
+  log "installing extras (nuclei, amass, subfinder, httpx)…"
+
+  # Prefer the distro package where it exists (Kali ships all four). Fall
+  # back to `go install` for tools the package manager doesn't carry.
+  case "$pm" in
+    apt)
+      apt-get update -qq
+      for pkg in nuclei amass subfinder httpx-toolkit; do
+        if DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg" 2>/dev/null; then
+          log "installed $pkg via apt"
+        else
+          warn "$pkg not in apt — will try go install"
+          go_install_extra "$pkg"
+        fi
+      done
+      ;;
+    brew)
+      if [[ $EUID -eq 0 ]]; then
+        warn "brew refuses root — install extras manually: brew install nuclei amass subfinder httpx"
+      else
+        brew install nuclei amass subfinder httpx || warn "one or more extras failed via brew"
+      fi
+      ;;
+    *)
+      log "package manager does not carry the extras — using 'go install'"
+      go_install_extra nuclei
+      go_install_extra amass
+      go_install_extra subfinder
+      go_install_extra httpx
+      ;;
+  esac
+}
+
+go_install_extra() {
+  local name="$1"
+  local module=""
+  case "$name" in
+    nuclei)         module="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest" ;;
+    amass)          module="github.com/owasp-amass/amass/v4/...@master" ;;
+    subfinder)      module="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest" ;;
+    httpx|httpx-toolkit) module="github.com/projectdiscovery/httpx/cmd/httpx@latest" ;;
+    *) warn "unknown extra: $name"; return ;;
+  esac
+  log "go install $module"
+  if ! GO111MODULE=on go install "$module"; then
+    warn "go install failed for $name"
+  fi
+}
+
 build_and_install() {
   local dst="$PREFIX/bin/ngehe"
   log "building ngehe…"
@@ -122,6 +180,12 @@ main() {
     log "(optional) sqlmap not found — install separately for deeper SQLi exploitation after ngehe flags a finding"
   fi
 
+  if [[ "$WITH_EXTRAS" -eq 1 ]]; then
+    install_extras "$pm"
+  else
+    log "(skipping extras — re-run with --with-extras for nuclei + amass + subfinder + httpx)"
+  fi
+
   mkdir -p "$PREFIX/bin"
   build_and_install
 
@@ -129,6 +193,10 @@ main() {
   log "  ngehe --help"
   log "  ngehe doctor"
   log "  ngehe box --target 10.10.11.5 --markdown box.md"
+  if [[ "$WITH_EXTRAS" -eq 1 ]]; then
+    log "  ngehe surface --domain target.htb     # subdomain + live-host map"
+    log "  ngehe scan ... --nuclei                # add nuclei template scan"
+  fi
 }
 
 main "$@"

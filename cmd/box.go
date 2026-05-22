@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/chud-lori/ngehe/internal/config"
 	"github.com/chud-lori/ngehe/internal/detector/cmdi"
@@ -21,6 +22,7 @@ import (
 	"github.com/chud-lori/ngehe/internal/scanner/dns"
 	"github.com/chud-lori/ngehe/internal/scanner/ftp"
 	"github.com/chud-lori/ngehe/internal/scanner/ldap"
+	"github.com/chud-lori/ngehe/internal/scanner/nuclei"
 	"github.com/chud-lori/ngehe/internal/scanner/smb"
 	"github.com/chud-lori/ngehe/internal/scanner/snmp"
 	"github.com/chud-lori/ngehe/internal/scanner/ssh"
@@ -37,6 +39,7 @@ var (
 	boxMD       string
 	boxNoWeb    bool
 	boxTopWords int
+	boxNuclei   bool
 )
 
 var boxCmd = &cobra.Command{
@@ -68,6 +71,8 @@ Detectors per service:
 		findings := append([]finding.Finding{}, scan.Findings...)
 		fmt.Fprintf(os.Stderr, "port-scan: %d open services\n", len(scan.Services))
 
+		var webTargets []string
+
 		for _, svc := range scan.Services {
 			label := fmt.Sprintf("%s/%d %s", svc.Proto, svc.Port, svc.Service)
 			before := len(findings)
@@ -91,6 +96,7 @@ Detectors per service:
 			case "http", "https", "http-alt", "http-proxy":
 				if !boxNoWeb {
 					target := webURL(svc.Service, svc.Host, svc.Port)
+					webTargets = append(webTargets, target)
 					reconOpts := recon.Options{Target: target, Concurrency: 20, TimeoutMS: 5000, Top: boxTopWords}
 					reconF := recon.Run(reconOpts)
 					findings = append(findings, reconF...)
@@ -118,6 +124,25 @@ Detectors per service:
 				}
 			}
 			fmt.Fprintf(os.Stderr, "%-30s → %d findings\n", label, len(findings)-before)
+		}
+
+		if boxNuclei && len(webTargets) > 0 {
+			if nuclei.Available() {
+				fmt.Fprintf(os.Stderr, "nuclei: scanning %d web targets…\n", len(webTargets))
+				nf, err := nuclei.Scan(nuclei.Options{
+					Targets:    webTargets,
+					Severity:   "low,medium,high,critical",
+					Concurrent: 25,
+					Timeout:    20 * time.Minute,
+				})
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "nuclei: %v\n", err)
+				}
+				findings = append(findings, nf...)
+				fmt.Fprintf(os.Stderr, "nuclei: %d findings\n", len(nf))
+			} else {
+				fmt.Fprintln(os.Stderr, "nuclei: --nuclei requested but binary not on PATH (install via ./install.sh --with-extras)")
+			}
 		}
 
 		fmt.Fprintf(os.Stderr, "total: %d findings\n", len(findings))
@@ -153,5 +178,6 @@ func init() {
 	boxCmd.Flags().StringVar(&boxMD, "markdown", "", "optional markdown report path")
 	boxCmd.Flags().BoolVar(&boxNoWeb, "no-web", false, "skip web recon on HTTP ports")
 	boxCmd.Flags().IntVar(&boxTopWords, "top", 200, "wordlist depth for web recon / DNS / vhost (0 = full)")
+	boxCmd.Flags().BoolVar(&boxNuclei, "nuclei", false, "after web recon, run nuclei against HTTP targets (requires nuclei on PATH)")
 	rootCmd.AddCommand(boxCmd)
 }

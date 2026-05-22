@@ -10,26 +10,68 @@
 # Drop a shell into the container instead:
 #   ./scripts/ngehe --shell
 #
-# Override the image with NGEHE_IMAGE:
-#   NGEHE_IMAGE=ngehe:dev ./scripts/ngehe surface -d example.com
+# Force a rebuild (e.g. after pulling repo changes):
+#   ./scripts/ngehe --rebuild
 #
-# Override the docker binary (e.g. for podman):
+# Override the image tag (e.g. if you've published your own to a registry):
+#   NGEHE_IMAGE=ghcr.io/me/ngehe:latest ./scripts/ngehe surface -d example.com
+#
+# Override the container runtime (e.g. podman / orbctl):
 #   DOCKER=podman ./scripts/ngehe surface -d example.com
 
 set -euo pipefail
 
 DOCKER="${DOCKER:-docker}"
-NGEHE_IMAGE="${NGEHE_IMAGE:-ghcr.io/chud-lori/ngehe:latest}"
+# Local-only tag by default. ngehe doesn't currently publish a public image;
+# the wrapper builds from the Dockerfile in the repo on first run.
+NGEHE_IMAGE="${NGEHE_IMAGE:-ngehe:local}"
 
 if ! command -v "$DOCKER" >/dev/null 2>&1; then
   echo "error: '$DOCKER' not found on PATH. Install Docker Desktop / docker-ce / podman." >&2
   exit 1
 fi
 
-# Pull image if not present (one-time on first run).
-if ! "$DOCKER" image inspect "$NGEHE_IMAGE" >/dev/null 2>&1; then
-  echo "ngehe: pulling $NGEHE_IMAGE (one-time, ~1.5GB)…" >&2
-  "$DOCKER" pull "$NGEHE_IMAGE"
+# --rebuild flag — force-rebuild before running.
+REBUILD=0
+if [[ "${1:-}" == "--rebuild" ]]; then
+  REBUILD=1
+  shift
+fi
+
+# Resolve the directory the script lives in, regardless of CWD or symlinks.
+# Used to find the Dockerfile (it's the script's parent dir).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Build the image if it isn't already present (or --rebuild was passed).
+# Resolution order:
+#   1. Image already present locally → use it.
+#   2. Image tag has a registry component (e.g. ghcr.io/...) → try pull.
+#      If pull fails, fall through to local build (if Dockerfile available).
+#   3. Build from the repo's Dockerfile.
+need_build=$REBUILD
+if [[ "$need_build" -eq 0 ]] && ! "$DOCKER" image inspect "$NGEHE_IMAGE" >/dev/null 2>&1; then
+  if [[ "$NGEHE_IMAGE" == *.*/* || "$NGEHE_IMAGE" == */*/* ]]; then
+    # Looks like a registry path (ghcr.io/foo/bar, docker.io/foo/bar, etc.).
+    echo "ngehe: pulling $NGEHE_IMAGE…" >&2
+    if ! "$DOCKER" pull "$NGEHE_IMAGE"; then
+      echo "ngehe: pull failed (image may not be published yet)." >&2
+      need_build=1
+    fi
+  else
+    need_build=1
+  fi
+fi
+
+if [[ "$need_build" -eq 1 ]]; then
+  if [[ ! -f "$REPO_ROOT/Dockerfile" ]]; then
+    echo "error: no Dockerfile at $REPO_ROOT — clone the ngehe repo first:" >&2
+    echo "  git clone https://github.com/chud-lori/ngehe.git && cd ngehe" >&2
+    echo "  ./scripts/ngehe doctor" >&2
+    exit 1
+  fi
+  echo "ngehe: building $NGEHE_IMAGE from $REPO_ROOT (one-time, 5-10 min)…" >&2
+  "$DOCKER" build -t "$NGEHE_IMAGE" "$REPO_ROOT"
 fi
 
 # Persistent named volumes for templates + tool configs.

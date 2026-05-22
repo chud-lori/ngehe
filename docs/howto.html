@@ -332,24 +332,20 @@
 <pre><span class="ok">$</span> docker version            <span class="cmt"># or: orb version / podman version</span>
 <span class="ok">$</span> docker run --rm hello-world</pre>
 
-      <h3>Get the wrapper script</h3>
-      <p>The wrapper (<code>scripts/ngehe</code>) hides the <code>docker run</code> boilerplate — volume mounts, network mode, template volume. Two ways to get it:</p>
+      <div class="callout info">
+        <strong>Currently build-only.</strong> We don't publish a public ngehe image to a registry yet, so installation follows the same model as <a href="https://github.com/owasp-amass/amass/blob/master/doc/install.md">amass</a>: clone the repo, then the image builds on first invocation. If/when we publish to GHCR, the wrapper will pull instead — same UX either way.
+      </div>
 
-      <p><strong>Option A — clone the repo</strong> (also gets you the Dockerfile + compose.yaml + install.sh for host installs):</p>
+      <h3>Clone the repo</h3>
+      <p>You need the Dockerfile + wrapper script + compose.yaml from the repo:</p>
 <pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
 <span class="ok">$</span> cd ngehe</pre>
 
-      <p><strong>Option B — grab just the wrapper</strong> (one file, ~50 lines):</p>
-<pre><span class="ok">$</span> curl -fsSL -o ngehe \
-    https://raw.githubusercontent.com/chud-lori/ngehe/main/scripts/ngehe
-<span class="ok">$</span> chmod +x ngehe
-<span class="ok">$</span> sudo mv ngehe /usr/local/bin/ngehe   <span class="cmt"># optional: drop in PATH for ngehe-anywhere</span></pre>
-
-      <h3>First run</h3>
-      <p>The wrapper pulls the image on first invocation (one-time ~2GB download). Then every subsequent command starts in <strong>~1 second</strong>:</p>
+      <h3>First run — the wrapper auto-builds</h3>
+      <p>On first invocation the wrapper builds the image from the local Dockerfile (one-time, 5–10 min depending on your bandwidth). Subsequent commands start in <strong>~1 second</strong> against the cached image:</p>
 <pre><span class="ok">$</span> ./scripts/ngehe doctor
-ngehe: pulling ghcr.io/chud-lori/ngehe:latest (one-time, ~2GB)…
-v3.4.7: Pulling from chud-lori/ngehe
+ngehe: building ngehe:local from /Users/you/ngehe (one-time, 5-10 min)…
+[+] Building 487.3s (24/24) FINISHED
 ...
 ngehe dependency check (linux)
 
@@ -361,20 +357,23 @@ ngehe dependency check (linux)
 
       <p>That's the entire setup. From here on, every command works.</p>
 
-      <h3>Build locally (optional)</h3>
-      <p>If you want to modify ngehe and rebuild, or you can't pull from GHCR:</p>
-<pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
-<span class="ok">$</span> cd ngehe
-<span class="ok">$</span> docker build -t ngehe:dev .                          <span class="cmt"># 5-10 min (depends on bandwidth)</span>
+      <h3>Alternative — docker compose</h3>
+      <p>If you prefer compose, it builds + runs in one step:</p>
+<pre><span class="ok">$</span> docker compose run --rm ngehe doctor
+<span class="ok">$</span> docker compose run --rm ngehe surface -d example.com --nuclei</pre>
 
-<span class="cmt"># Use the local image with the wrapper:</span>
-<span class="ok">$</span> NGEHE_IMAGE=ngehe:dev ./scripts/ngehe doctor
+      <h3>Rebuild after pulling repo updates</h3>
+<pre><span class="ok">$</span> git pull
+<span class="ok">$</span> ./scripts/ngehe --rebuild doctor          <span class="cmt"># or: docker compose build</span></pre>
 
-<span class="cmt"># Skip the ~1GB template pre-bake for a faster dev image:</span>
+      <h3>Smaller / faster dev builds</h3>
+<pre><span class="cmt"># Skip the ~1GB nuclei template pre-bake (templates download on first --nuclei run):</span>
 <span class="ok">$</span> docker build --build-arg NO_TEMPLATES=1 -t ngehe:slim .
+<span class="ok">$</span> NGEHE_IMAGE=ngehe:slim ./scripts/ngehe doctor
 
-<span class="cmt"># Multi-arch build (publish for both Linux + Apple Silicon):</span>
-<span class="ok">$</span> docker buildx build --platform linux/amd64,linux/arm64 -t ngehe:dev --load .</pre>
+<span class="cmt"># Multi-arch (linux/amd64 + linux/arm64) — useful if you publish to your own registry:</span>
+<span class="ok">$</span> docker buildx build --platform linux/amd64,linux/arm64 -t myorg/ngehe:latest --push .
+<span class="ok">$</span> NGEHE_IMAGE=myorg/ngehe:latest ./scripts/ngehe doctor    <span class="cmt"># now pulls from your registry</span></pre>
 
       <h3>One-shot scans (the wrapper)</h3>
 <pre><span class="ok">$</span> ./scripts/ngehe doctor

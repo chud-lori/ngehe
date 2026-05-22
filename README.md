@@ -193,13 +193,20 @@ Best run inside the container — every handoff tool (`hashcat`, `evil-winrm`, `
 Don't want to install on your host? Use the bundled Docker image instead. Works on Linux, macOS (Apple Silicon + Intel), Windows / WSL — same image, no platform-specific compile headaches.
 
 ```bash
-# Pull + scan in one go (the wrapper handles mounts/network/templates).
+# 1. Clone the repo (you need the Dockerfile + wrapper).
+git clone https://github.com/chud-lori/ngehe.git
+cd ngehe
+
+# 2. First run auto-builds the image (one-time, 5-10 min).
+./scripts/ngehe doctor
+
+# 3. Use it like the native binary.
 ./scripts/ngehe surface -d example.com --nuclei
 ./scripts/ngehe box --target 10.10.11.5 --markdown box.md
-
-# Drop into a shell with every tool on PATH:
-./scripts/ngehe --shell
+./scripts/ngehe --shell                          # drop into a shell with every tool on PATH
 ```
+
+> ngehe doesn't publish a public Docker image yet (same model as amass — clone + build locally). Set `NGEHE_IMAGE=ghcr.io/me/ngehe:latest` to point the wrapper at your own registry once you publish.
 
 The image is ~2GB and bundles **the full web + box pentest toolkit** — ngehe is the primary entry point, but every tool you'd reach for during an engagement is on PATH:
 
@@ -211,17 +218,17 @@ The image is ~2GB and bundles **the full web + box pentest toolkit** — ngehe i
 
 No `--with-extras`, no `apt install`, no Python venv juggling, no `nuclei -update-templates` — pull once and every command works.
 
-Build locally:
+Rebuild after pulling repo updates:
 
 ```bash
-docker build -t ngehe:dev .
-NGEHE_IMAGE=ngehe:dev ./scripts/ngehe doctor
+git pull
+./scripts/ngehe --rebuild doctor      # or: docker compose build
 ```
 
-Or use docker compose:
+Use docker compose instead of the wrapper:
 
 ```bash
-docker compose run --rm ngehe surface -d example.com
+docker compose run --rm ngehe surface -d example.com --nuclei
 ```
 
 Raw `docker run` (skip the wrapper):
@@ -231,7 +238,7 @@ docker run --rm -it \
   --network host \
   -v "$PWD:/work" \
   -v ngehe-nuclei-templates:/root/nuclei-templates \
-  ghcr.io/chud-lori/ngehe:latest surface -d example.com --nuclei
+  ngehe:local surface -d example.com --nuclei
 ```
 
 **macOS caveat:** Docker Desktop's `--network host` runs through a VM bridge. Scanning your own LAN works (RFC1918 reachable), but a few edge cases (raw-socket nmap modes) need `--cap-add=NET_RAW --cap-add=NET_ADMIN`. ngehe uses TCP connect scans by default, so the basic flow just works.

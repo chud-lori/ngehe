@@ -1,8 +1,12 @@
 services:
   ngehe:
-    image: ghcr.io/chud-lori/ngehe:latest
-    # Local build:
-    #   docker compose build
+    image: ngehe:local
+    # No public registry image yet — compose builds from the local Dockerfile
+    # on first `docker compose run` (one-time, 5-10 min). Rebuild after a
+    # repo update with: `docker compose build`.
+    #
+    # To use a published image instead, swap the `image:` value (e.g. to
+    # `ghcr.io/me/ngehe:latest`) and remove the `build:` block below.
     build:
       context: .
       dockerfile: Dockerfile

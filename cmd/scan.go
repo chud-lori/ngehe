@@ -170,13 +170,18 @@ var scanCmd = &cobra.Command{
 
 		fmt.Fprintf(os.Stderr, "total: %d findings\n", len(findings))
 
-		if err := report.WriteJSONL(scanOut, findings); err != nil {
-			return fmt.Errorf("write jsonl: %w", err)
+		if scanOut != "" {
+			if err := report.WriteJSONL(scanOut, findings); err != nil {
+				return fmt.Errorf("write jsonl: %w", err)
+			}
 		}
 		if scanMD != "" {
 			if err := report.WriteMarkdown(scanMD, findings); err != nil {
 				return fmt.Errorf("write markdown: %w", err)
 			}
+		}
+		if scanOut == "" && scanMD == "" {
+			report.PrintTerminal(os.Stdout, findings)
 		}
 		return nil
 	},
@@ -269,8 +274,8 @@ func init() {
 	scanCmd.Flags().BoolVar(&scanCrawl, "crawl", true, "with --target, run dir-bruteforce first to widen the path list")
 	scanCmd.Flags().StringVar(&scanBase, "base", "", "base URL override for OpenAPI (e.g. http://127.0.0.1:8787)")
 	scanCmd.Flags().StringVarP(&scanConfig, "config", "c", "ngehe.yaml", "path to ngehe config")
-	scanCmd.Flags().StringVarP(&scanOut, "out", "o", "findings.jsonl", "JSONL findings output path")
-	scanCmd.Flags().StringVar(&scanMD, "markdown", "", "optional markdown report path")
+	scanCmd.Flags().StringVarP(&scanOut, "out", "o", "", "write JSONL findings to this path (default: print to terminal)")
+	scanCmd.Flags().StringVar(&scanMD, "markdown", "", "write markdown report to this path (default: print to terminal)")
 	scanCmd.Flags().BoolVar(&scanNuclei, "nuclei", false, "after native detectors, run nuclei (-jsonl) against in-scope hosts; requires nuclei on PATH")
 	rootCmd.AddCommand(scanCmd)
 }

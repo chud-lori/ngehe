@@ -38,9 +38,13 @@ ngehe recon --target http://10.10.11.5 --markdown recon.md
 Subdomain enumeration + live-host probing using the de-facto Kali tools: **amass** (OWASP passive), **subfinder** (fast passive), and **httpx** (probe + tech fingerprint). With `--nuclei`, also runs projectdiscovery's template scanner against the live hosts.
 
 ```bash
-ngehe surface --domain target.htb --markdown surface.md
+ngehe surface --domain target.htb                  # prints colored summary to terminal
+ngehe surface --domain target.htb --markdown surface.md   # save markdown report
+ngehe surface --domain target.htb --out s.jsonl    # save JSONL for jq
 ngehe surface --domain target.htb --nuclei         # add CVE / misconfig templates
 ```
+
+Output mode is opt-in: default is terminal print (with ANSI colors and a "Suggested attack chain" header for critical/high findings); pass `--out` or `--markdown` to write a file instead. Same behavior for `recon`, `scan`, and `box`.
 
 Each tool is opt-out via `--no-amass` / `--no-subfinder` / `--no-httpx`; missing binaries are skipped (no hard failure). Install them with `./install.sh --with-extras`. Live URLs are printed to stdout at the end — chain into `ngehe recon` / `ngehe scan` / `ngehe box`:
 

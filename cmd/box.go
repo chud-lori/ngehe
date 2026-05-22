@@ -154,13 +154,18 @@ Detectors per service:
 		}
 
 		fmt.Fprintf(os.Stderr, "total: %d findings\n", len(findings))
-		if err := report.WriteJSONL(boxOut, findings); err != nil {
-			return err
+		if boxOut != "" {
+			if err := report.WriteJSONL(boxOut, findings); err != nil {
+				return err
+			}
 		}
 		if boxMD != "" {
 			if err := report.WriteMarkdown(boxMD, findings); err != nil {
 				return err
 			}
+		}
+		if boxOut == "" && boxMD == "" {
+			report.PrintTerminal(os.Stdout, findings)
 		}
 		return nil
 	},
@@ -182,8 +187,8 @@ func init() {
 	boxCmd.Flags().StringVarP(&boxTarget, "target", "t", "", "target IP or hostname (required)")
 	boxCmd.Flags().StringVar(&boxProfile, "profile", "quick", "nmap profile: quick (top 100 ports), full (-p-), service (-sV -sC -p-)")
 	boxCmd.Flags().StringVar(&boxDomain, "domain", "", "domain name for DNS enumeration (e.g. target.htb)")
-	boxCmd.Flags().StringVarP(&boxOut, "out", "o", "box.jsonl", "JSONL findings output")
-	boxCmd.Flags().StringVar(&boxMD, "markdown", "", "optional markdown report path")
+	boxCmd.Flags().StringVarP(&boxOut, "out", "o", "", "write JSONL findings to this path (default: print to terminal)")
+	boxCmd.Flags().StringVar(&boxMD, "markdown", "", "write markdown report to this path (default: print to terminal)")
 	boxCmd.Flags().BoolVar(&boxNoWeb, "no-web", false, "skip web recon on HTTP ports")
 	boxCmd.Flags().IntVar(&boxTopWords, "top", 200, "wordlist depth for web recon / DNS / vhost (0 = full)")
 	boxCmd.Flags().BoolVar(&boxNuclei, "nuclei", false, "after web recon, run nuclei against HTTP targets (requires nuclei on PATH)")

@@ -3,6 +3,7 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -116,4 +117,154 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// PrintTerminal renders findings for direct terminal viewing. Layout:
+//   - Summary counts line
+//   - Suggested attack chain (critical/high with next-step playbook)
+//   - All findings, one row each, grouped by severity
+//
+// ANSI colors when w is a TTY; plain text when piped to a file.
+func PrintTerminal(w io.Writer, findings []finding.Finding) {
+	findings = finding.Enrich(findings)
+	if len(findings) == 0 {
+		fmt.Fprintln(w, "No findings.")
+		return
+	}
+
+	sorted := append([]finding.Finding(nil), findings...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return finding.SevRank(sorted[i].Severity) < finding.SevRank(sorted[j].Severity)
+	})
+
+	color := isTTY(w)
+	counts := map[finding.Severity]int{}
+	for _, f := range sorted {
+		counts[f.Severity]++
+	}
+
+	fmt.Fprintf(w, "\n%s %d findings — %s %d  %s %d  %s %d  %s %d  %s %d\n\n",
+		bold("Total:", color), len(sorted),
+		colorize("critical", finding.SevCritical, color), counts[finding.SevCritical],
+		colorize("high", finding.SevHigh, color), counts[finding.SevHigh],
+		colorize("medium", finding.SevMedium, color), counts[finding.SevMedium],
+		colorize("low", finding.SevLow, color), counts[finding.SevLow],
+		dim("info", color), counts[finding.SevInfo],
+	)
+
+	// Attack chain
+	var chain []finding.Finding
+	for _, f := range sorted {
+		if (f.Severity == finding.SevCritical || f.Severity == finding.SevHigh) && f.Next != "" {
+			chain = append(chain, f)
+		}
+	}
+	if len(chain) > 0 {
+		fmt.Fprintln(w, bold("Suggested attack chain:", color))
+		fmt.Fprintln(w)
+		for i, f := range chain {
+			fmt.Fprintf(w, "  %d. %s %s — %s %s\n", i+1,
+				sevBadge(f.Severity, color), bold(f.Rule, color), f.Method, f.Path)
+			if f.Param != "" {
+				fmt.Fprintf(w, "     %s %s  %s %s\n",
+					dim("param:", color), f.Param,
+					dim("payload:", color), truncate(f.Payload, 80))
+			}
+			if f.Evidence != "" {
+				fmt.Fprintf(w, "     %s %s\n", dim("evidence:", color), truncate(f.Evidence, 140))
+			}
+			fmt.Fprintf(w, "     %s\n", dim("next:", color))
+			for _, ln := range strings.Split(strings.TrimRight(f.Next, "\n"), "\n") {
+				fmt.Fprintf(w, "       %s\n", ln)
+			}
+			fmt.Fprintln(w)
+		}
+	}
+
+	fmt.Fprintln(w, bold("All findings:", color))
+	fmt.Fprintln(w)
+	for _, f := range sorted {
+		target := f.URL
+		if target == "" {
+			target = f.Path
+		}
+		src := ""
+		if f.Source != "" {
+			src = " " + dim("("+f.Source+")", color)
+		}
+		fmt.Fprintf(w, "  %s %-26s %s%s\n", sevBadge(f.Severity, color), f.Rule, target, src)
+		if f.Evidence != "" && f.Severity != finding.SevInfo {
+			fmt.Fprintf(w, "    %s %s\n", dim("└─", color), truncate(f.Evidence, 140))
+		}
+	}
+	fmt.Fprintln(w)
+}
+
+func sevBadge(s finding.Severity, color bool) string {
+	label := strings.ToUpper(string(s))
+	if len(label) > 8 {
+		label = label[:8]
+	}
+	padded := fmt.Sprintf("[%s]", label+strings.Repeat(" ", 8-len(label)))
+	if !color {
+		return padded
+	}
+	var c string
+	switch s {
+	case finding.SevCritical:
+		c = "\033[1;31m"
+	case finding.SevHigh:
+		c = "\033[1;33m"
+	case finding.SevMedium:
+		c = "\033[1;36m"
+	case finding.SevLow:
+		c = "\033[34m"
+	default:
+		c = "\033[2;37m"
+	}
+	return c + padded + "\033[0m"
+}
+
+func colorize(s string, sev finding.Severity, color bool) string {
+	if !color {
+		return s
+	}
+	switch sev {
+	case finding.SevCritical:
+		return "\033[1;31m" + s + "\033[0m"
+	case finding.SevHigh:
+		return "\033[1;33m" + s + "\033[0m"
+	case finding.SevMedium:
+		return "\033[1;36m" + s + "\033[0m"
+	case finding.SevLow:
+		return "\033[34m" + s + "\033[0m"
+	default:
+		return "\033[2;37m" + s + "\033[0m"
+	}
+}
+
+func bold(s string, color bool) string {
+	if !color {
+		return s
+	}
+	return "\033[1m" + s + "\033[0m"
+}
+
+func dim(s string, color bool) string {
+	if !color {
+		return s
+	}
+	return "\033[2m" + s + "\033[0m"
+}
+
+func isTTY(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
 }

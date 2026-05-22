@@ -44,13 +44,18 @@ SecLists common.txt wordlist to discover hidden endpoints.`,
 			opts.Target, opts.Concurrency, opts.TimeoutMS, opts.Top)
 		findings := recon.Run(opts)
 		fmt.Fprintf(os.Stderr, "recon: %d findings\n", len(findings))
-		if err := report.WriteJSONL(reconOut, findings); err != nil {
-			return err
+		if reconOut != "" {
+			if err := report.WriteJSONL(reconOut, findings); err != nil {
+				return err
+			}
 		}
 		if reconMD != "" {
 			if err := report.WriteMarkdown(reconMD, findings); err != nil {
 				return err
 			}
+		}
+		if reconOut == "" && reconMD == "" {
+			report.PrintTerminal(os.Stdout, findings)
 		}
 		return nil
 	},
@@ -58,8 +63,8 @@ SecLists common.txt wordlist to discover hidden endpoints.`,
 
 func init() {
 	reconCmd.Flags().StringVarP(&reconTarget, "target", "t", "", "target URL (e.g. http://10.10.11.5)")
-	reconCmd.Flags().StringVarP(&reconOut, "out", "o", "recon.jsonl", "JSONL findings output")
-	reconCmd.Flags().StringVar(&reconMD, "markdown", "", "optional markdown report path")
+	reconCmd.Flags().StringVarP(&reconOut, "out", "o", "", "write JSONL findings to this path (default: print to terminal)")
+	reconCmd.Flags().StringVar(&reconMD, "markdown", "", "write markdown report to this path (default: print to terminal)")
 	reconCmd.Flags().IntVar(&reconConcurrency, "concurrency", 20, "concurrent probes")
 	reconCmd.Flags().IntVar(&reconTimeoutMS, "timeout-ms", 5000, "per-request timeout")
 	reconCmd.Flags().IntVar(&reconTop, "top", 500, "test the first N entries from each wordlist (0 = all)")

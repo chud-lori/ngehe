@@ -131,16 +131,22 @@ Install with: ./install.sh --with-extras`,
 		}
 
 		fmt.Fprintf(os.Stderr, "total: %d findings\n", len(findings))
-		if err := report.WriteJSONL(surfaceOut, findings); err != nil {
-			return err
+
+		// File outputs (opt-in); fall back to terminal if neither is set.
+		if surfaceOut != "" {
+			if err := report.WriteJSONL(surfaceOut, findings); err != nil {
+				return err
+			}
 		}
 		if surfaceMD != "" {
 			if err := report.WriteMarkdown(surfaceMD, findings); err != nil {
 				return err
 			}
 		}
-
-		if len(liveURLs) > 0 {
+		if surfaceOut == "" && surfaceMD == "" {
+			report.PrintTerminal(os.Stdout, findings)
+		} else if len(liveURLs) > 0 {
+			// File mode: emit live URLs for piping.
 			fmt.Fprintln(os.Stderr, "\nLive HTTP hosts — chain into ngehe recon / scan / box:")
 			for _, u := range liveURLs {
 				fmt.Fprintln(os.Stdout, u)
@@ -152,8 +158,8 @@ Install with: ./install.sh --with-extras`,
 
 func init() {
 	surfaceCmd.Flags().StringVarP(&surfaceDomain, "domain", "d", "", "domain to enumerate (e.g. example.com) — required")
-	surfaceCmd.Flags().StringVarP(&surfaceOut, "out", "o", "surface.jsonl", "JSONL findings output")
-	surfaceCmd.Flags().StringVar(&surfaceMD, "markdown", "", "optional markdown report path")
+	surfaceCmd.Flags().StringVarP(&surfaceOut, "out", "o", "", "write JSONL findings to this path (default: print to terminal)")
+	surfaceCmd.Flags().StringVar(&surfaceMD, "markdown", "", "write markdown report to this path (default: print to terminal)")
 	surfaceCmd.Flags().IntVar(&surfaceTimeout, "timeout", 300, "per-tool timeout in seconds (default 300)")
 	surfaceCmd.Flags().IntVarP(&surfaceConc, "concurrency", "c", 50, "httpx probe concurrency")
 	surfaceCmd.Flags().BoolVar(&surfaceNuclei, "nuclei", false, "also run nuclei against live hosts (slow; opt-in)")

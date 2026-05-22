@@ -321,6 +321,61 @@
       </ul>
       <p>Skip from the image (use Mac / your host instead): db clients (postgres/mysql/redis CLI tools — install on the host if you need them), <code>git</code>, <code>wget</code> (the host has these), the BloodHound GUI (run it on the host and ingest the JSON).</p>
 
+      <h3>Prerequisites</h3>
+      <p>You need a working container runtime. Any of these is fine:</p>
+      <ul>
+        <li><strong>macOS</strong> — <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> or <a href="https://orbstack.dev/">OrbStack</a> (lighter, faster on Apple Silicon)</li>
+        <li><strong>Linux</strong> — <code>docker-ce</code> from your distro (<code>sudo apt install docker.io docker-compose-plugin</code>) or <a href="https://podman.io/">Podman</a></li>
+        <li><strong>Windows</strong> — Docker Desktop with WSL2 backend</li>
+      </ul>
+      <p>Verify it works:</p>
+<pre><span class="ok">$</span> docker version            <span class="cmt"># or: orb version / podman version</span>
+<span class="ok">$</span> docker run --rm hello-world</pre>
+
+      <h3>Get the wrapper script</h3>
+      <p>The wrapper (<code>scripts/ngehe</code>) hides the <code>docker run</code> boilerplate — volume mounts, network mode, template volume. Two ways to get it:</p>
+
+      <p><strong>Option A — clone the repo</strong> (also gets you the Dockerfile + compose.yaml + install.sh for host installs):</p>
+<pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
+<span class="ok">$</span> cd ngehe</pre>
+
+      <p><strong>Option B — grab just the wrapper</strong> (one file, ~50 lines):</p>
+<pre><span class="ok">$</span> curl -fsSL -o ngehe \
+    https://raw.githubusercontent.com/chud-lori/ngehe/main/scripts/ngehe
+<span class="ok">$</span> chmod +x ngehe
+<span class="ok">$</span> sudo mv ngehe /usr/local/bin/ngehe   <span class="cmt"># optional: drop in PATH for ngehe-anywhere</span></pre>
+
+      <h3>First run</h3>
+      <p>The wrapper pulls the image on first invocation (one-time ~2GB download). Then every subsequent command starts in <strong>~1 second</strong>:</p>
+<pre><span class="ok">$</span> ./scripts/ngehe doctor
+ngehe: pulling ghcr.io/chud-lori/ngehe:latest (one-time, ~2GB)…
+v3.4.7: Pulling from chud-lori/ngehe
+...
+ngehe dependency check (linux)
+
+  ✓ nmap                   /usr/bin/nmap  [required]
+  ✓ nuclei                 /usr/local/bin/nuclei  [optional]
+  ✓ nuclei-templates       installed (data check passed)
+  ✓ amass                  /usr/local/bin/amass  [optional]
+  ...</pre>
+
+      <p>That's the entire setup. From here on, every command works.</p>
+
+      <h3>Build locally (optional)</h3>
+      <p>If you want to modify ngehe and rebuild, or you can't pull from GHCR:</p>
+<pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
+<span class="ok">$</span> cd ngehe
+<span class="ok">$</span> docker build -t ngehe:dev .                          <span class="cmt"># 5-10 min (depends on bandwidth)</span>
+
+<span class="cmt"># Use the local image with the wrapper:</span>
+<span class="ok">$</span> NGEHE_IMAGE=ngehe:dev ./scripts/ngehe doctor
+
+<span class="cmt"># Skip the ~1GB template pre-bake for a faster dev image:</span>
+<span class="ok">$</span> docker build --build-arg NO_TEMPLATES=1 -t ngehe:slim .
+
+<span class="cmt"># Multi-arch build (publish for both Linux + Apple Silicon):</span>
+<span class="ok">$</span> docker buildx build --platform linux/amd64,linux/arm64 -t ngehe:dev --load .</pre>
+
       <h3>One-shot scans (the wrapper)</h3>
 <pre><span class="ok">$</span> ./scripts/ngehe doctor
 <span class="ok">$</span> ./scripts/ngehe surface -d example.com --nuclei
@@ -345,16 +400,6 @@ root@container:/work# hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt
       <h3>docker compose</h3>
 <pre><span class="ok">$</span> docker compose run --rm ngehe surface -d example.com --nuclei
 <span class="ok">$</span> docker compose run --rm ngehe --shell</pre>
-
-      <h3>Build locally</h3>
-<pre><span class="ok">$</span> docker build -t ngehe:dev .
-<span class="ok">$</span> NGEHE_IMAGE=ngehe:dev ./scripts/ngehe doctor
-
-<span class="cmt"># Or skip the ~1GB template pre-bake for a smaller dev image:</span>
-<span class="ok">$</span> docker build --build-arg NO_TEMPLATES=1 -t ngehe:dev-slim .
-
-<span class="cmt"># Multi-arch (linux/amd64 + linux/arm64):</span>
-<span class="ok">$</span> docker buildx build --platform linux/amd64,linux/arm64 -t ngehe:dev --load .</pre>
 
       <div class="callout warn">
         <strong>macOS caveat.</strong> Docker Desktop's <code>--network host</code> goes through a VM bridge. RFC1918 / LAN targets reachable from your Mac are reachable from the container, but raw-socket nmap modes (<code>-sS</code> SYN scan) need <code>--cap-add=NET_RAW --cap-add=NET_ADMIN</code> on the docker run. ngehe uses TCP-connect (<code>-sT</code>) by default, so the basic flow works without extra caps.

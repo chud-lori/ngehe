@@ -176,6 +176,18 @@ See [`internal/wordlist/NOTICE.md`](internal/wordlist/NOTICE.md) for attribution
 
 Each detector is a separate package under `internal/detector/` and `internal/recon/`. They share `httpx`, `fuzz`, `oracle`, `finding`, and `wordlist` utilities.
 
+### `ngehe chain <findings.jsonl>`
+
+Guided exploit walkthrough. After any scan you have a JSONL with per-rule playbook hints in the `next` field; `ngehe chain` walks them interactively, displays the playbook for each critical/high finding, and prompts you to type/confirm the command to run. The command shells out via `bash` with stdio attached, so reverse-shell listeners, evil-winrm sessions, sqlmap prompts, etc. behave normally. **The bridge between "ngehe found a thing" and "I have a shell."**
+
+```bash
+ngehe surface -d example.com --nuclei --out findings.jsonl
+ngehe chain findings.jsonl
+ngehe chain findings.jsonl --all     # include medium / low findings, not just critical / high
+```
+
+Best run inside the container — every handoff tool (`hashcat`, `evil-winrm`, `netexec`, `impacket-*`, etc.) is pre-installed.
+
 ## Container
 
 Don't want to install on your host? Use the bundled Docker image instead. Works on Linux, macOS (Apple Silicon + Intel), Windows / WSL — same image, no platform-specific compile headaches.
@@ -189,7 +201,15 @@ Don't want to install on your host? Use the bundled Docker image instead. Works 
 ./scripts/ngehe --shell
 ```
 
-The image is ~1.5GB and bundles **everything**: ngehe + nuclei (with templates pre-baked) + amass + subfinder + httpx + nmap + sqlmap + hashcat + impacket + bloodhound-python + the SecLists wordlists. No `--with-extras`, no `nuclei -update-templates`, no `apt install` — pull once and every command works.
+The image is ~2GB and bundles **the full web + box pentest toolkit** — ngehe is the primary entry point, but every tool you'd reach for during an engagement is on PATH:
+
+- **ngehe + integrations**: nuclei (templates pre-baked) + amass + subfinder + httpx
+- **Web**: nmap, sqlmap, ffuf, gobuster, dalfox
+- **AD / box**: hashcat, impacket (full Python suite), netexec, evil-winrm, kerbrute, enum4linux-ng, smbclient, ldap-utils, bloodhound-python
+- **Networking**: ncat, socat, openssh-client, proxychains4
+- **Reference**: PayloadsAllTheThings cloned to `/opt/PayloadsAllTheThings`
+
+No `--with-extras`, no `apt install`, no Python venv juggling, no `nuclei -update-templates` — pull once and every command works.
 
 Build locally:
 

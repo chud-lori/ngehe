@@ -283,7 +283,7 @@
 
 <section id="commands">
   <div class="container">
-    <h2>Four commands</h2>
+    <h2>Five commands</h2>
     <p class="section-sub">Pick the entry point that matches what you have.</p>
 
     <div class="grid-3">
@@ -322,6 +322,13 @@
     --config <span class="str">ngehe.yaml</span> \
     --nuclei \
     --markdown <span class="str">findings.md</span></pre>
+      </div>
+
+      <div class="card">
+        <h3><code>ngehe chain</code></h3>
+        <p>Guided exploit walkthrough. Reads a findings JSONL, walks each finding's playbook, prompts you to run / edit / skip the command. Bridge from "found" to "shell."</p>
+        <pre><span class="ok">$</span> ngehe chain <span class="str">findings.jsonl</span>
+<span class="ok">$</span> ngehe chain <span class="str">findings.jsonl</span> --all</pre>
       </div>
 
     </div>
@@ -496,7 +503,7 @@
     </div>
 
     <p style="margin-top:18px; color: var(--muted); font-size: 14px;">
-      ~1.5GB image, bundles <strong>everything</strong>: ngehe + nuclei (templates pre-baked) + amass + subfinder + httpx + nmap + sqlmap + hashcat + impacket + bloodhound-python + SecLists. No <code>--with-extras</code>, no template download, no <code>apt install</code>. Pull once, every command works.
+      ~2GB image, the <strong>full web + box pentest toolkit</strong>. ngehe + nuclei (templates pre-baked) + amass + subfinder + httpx + nmap + sqlmap + ffuf + gobuster + dalfox + hashcat + impacket + netexec + evil-winrm + kerbrute + enum4linux-ng + smbclient + ldap-utils + bloodhound-python + PayloadsAllTheThings. No <code>--with-extras</code>, no template download, no <code>apt install</code>. Pull once, every command works.
     </p>
 
     <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Or raw <code>docker run</code>:</p>

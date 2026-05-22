@@ -275,7 +275,7 @@
 
       <h3>Install the extras</h3>
 <pre><span class="ok">$</span> sudo ./install.sh --with-extras   <span class="cmt"># nuclei + amass + subfinder + httpx</span></pre>
-      <p>Uses apt on Kali / Debian, brew on macOS, <code>go install</code> as fallback. Each tool is opt-in; if a binary is missing, ngehe prints a hint and skips it without failing.</p>
+      <p>Resolution order: apt on Kali / Debian (if the package exists), brew on macOS, otherwise pre-built release binaries from each tool's upstream GitHub releases (verified via <code>/releases/latest</code> redirect, downloaded with <code>curl</code>, extracted with <code>unzip</code> / <code>tar</code>). We avoid <code>go install</code> for these — nuclei in particular has fragile transitive deps (<code>interactsh</code>, <code>carvel.dev/ytt</code>) that fail intermittently with checksum errors. Each tool is opt-in; if a binary is missing, ngehe prints a hint and skips it without failing the run.</p>
       <p>Verify:</p>
 <pre><span class="ok">$</span> ngehe doctor                     <span class="cmt"># lists every dep with ✓/✗</span></pre>
 

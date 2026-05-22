@@ -89,19 +89,29 @@ install_extras() {
   local pm="$1"
   log "installing extras (nuclei, amass, subfinder, httpx)…"
 
-  # Prefer the distro package where it exists (Kali ships all four). Fall
-  # back to `go install` for tools the package manager doesn't carry.
+  # Prefer the distro package where it exists (Kali ships all four).
+  # On macOS use brew. Everywhere else, pull pre-built release binaries
+  # from the upstream GitHub releases — much faster than `go install`
+  # and immune to transitive-dep + checksum problems.
   case "$pm" in
     apt)
       apt-get update -qq
-      for pkg in nuclei amass subfinder httpx-toolkit; do
+      local apt_missing=()
+      for pair in "nuclei nuclei" "amass amass" "subfinder subfinder" "httpx httpx-toolkit"; do
+        local bin="${pair%% *}" pkg="${pair##* }"
         if DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg" 2>/dev/null; then
-          log "installed $pkg via apt"
+          log "installed $bin via apt ($pkg)"
         else
-          warn "$pkg not in apt — will try go install"
-          go_install_extra "$pkg"
+          warn "$pkg not in apt — will fall back to release binary"
+          apt_missing+=("$bin")
         fi
       done
+      if [[ "${#apt_missing[@]}" -gt 0 ]]; then
+        ensure_release_deps
+        for bin in "${apt_missing[@]}"; do
+          install_release_binary "$bin"
+        done
+      fi
       ;;
     brew)
       if [[ $EUID -eq 0 ]]; then
@@ -111,29 +121,128 @@ install_extras() {
       fi
       ;;
     *)
-      log "package manager does not carry the extras — using 'go install'"
-      go_install_extra nuclei
-      go_install_extra amass
-      go_install_extra subfinder
-      go_install_extra httpx
+      log "package manager does not carry the extras — using release binaries"
+      ensure_release_deps
+      install_release_binary nuclei
+      install_release_binary amass
+      install_release_binary subfinder
+      install_release_binary httpx
       ;;
   esac
 }
 
-go_install_extra() {
+# ensure_release_deps installs curl + unzip if missing (needed to fetch
+# and unpack the release tarballs). Quiet no-op when both are present.
+ensure_release_deps() {
+  local pm
+  pm="$(detect_pm)"
+  for c in curl unzip; do
+    if ! command -v "$c" >/dev/null 2>&1; then
+      log "installing $c (required to fetch release binaries)…"
+      install_pkg "$pm" "$c" || warn "$c install failed — release-binary path will not work"
+    fi
+  done
+}
+
+# github_latest_tag returns the version (without the leading "v") of the
+# repo's latest release, using the redirect from /releases/latest. Avoids
+# the API rate limit hit you'd take from /releases/latest JSON.
+github_latest_tag() {
+  local repo="$1"
+  curl -sLI -o /dev/null -w "%{url_effective}\n" "https://github.com/$repo/releases/latest" \
+    | sed -E 's|.*/tag/v?||' | tr -d '[:space:]'
+}
+
+# install_release_binary fetches the pre-built tarball for the given tool
+# from its upstream GitHub release and drops the resulting binary in
+# $PREFIX/bin. Handles the three URL conventions used by the four tools.
+install_release_binary() {
   local name="$1"
-  local module=""
-  case "$name" in
-    nuclei)         module="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest" ;;
-    amass)          module="github.com/owasp-amass/amass/v4/...@master" ;;
-    subfinder)      module="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest" ;;
-    httpx|httpx-toolkit) module="github.com/projectdiscovery/httpx/cmd/httpx@latest" ;;
-    *) warn "unknown extra: $name"; return ;;
+  local repo="" archive_name=""
+  local os arch
+  os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  arch=$(uname -m)
+  case "$arch" in
+    x86_64|amd64)   arch=amd64 ;;
+    aarch64|arm64)  arch=arm64 ;;
+    armv7l)         arch=armv7 ;;
   esac
-  log "go install $module"
-  if ! GO111MODULE=on go install "$module"; then
-    warn "go install failed for $name"
+
+  case "$name" in
+    nuclei)
+      repo="projectdiscovery/nuclei"
+      ;;
+    subfinder)
+      repo="projectdiscovery/subfinder"
+      ;;
+    httpx)
+      repo="projectdiscovery/httpx"
+      ;;
+    amass)
+      repo="owasp-amass/amass"
+      ;;
+    *) warn "unknown release binary: $name"; return 1 ;;
+  esac
+
+  if command -v "$name" >/dev/null 2>&1; then
+    log "$name already on PATH ($(command -v "$name")) — skipping release download"
+    return 0
   fi
+
+  local ver
+  ver=$(github_latest_tag "$repo")
+  if [[ -z "$ver" ]]; then
+    warn "could not determine latest version of $name from $repo"
+    return 1
+  fi
+
+  # URL conventions (verified against current releases — May 2026):
+  #   projectdiscovery (nuclei/subfinder/httpx):
+  #       linux:   <name>_<ver>_linux_<arch>.zip
+  #       darwin:  <name>_<ver>_macOS_<arch>.zip   (capital M, capital S)
+  #   amass v5+:
+  #       <name>_<os>_<arch>.tar.gz                (lowercase os, no version in name)
+  local url archive_ext pd_os
+  if [[ "$os" == "darwin" ]]; then
+    pd_os="macOS"
+  else
+    pd_os="$os"
+  fi
+  if [[ "$name" == "amass" ]]; then
+    url="https://github.com/$repo/releases/download/v${ver}/amass_${os}_${arch}.tar.gz"
+    archive_ext="tar.gz"
+  else
+    url="https://github.com/$repo/releases/download/v${ver}/${name}_${ver}_${pd_os}_${arch}.zip"
+    archive_ext="zip"
+  fi
+
+  local tmp
+  tmp=$(mktemp -d)
+  log "downloading $name $ver  →  $url"
+  if ! curl -fSL --retry 3 --retry-delay 2 -o "$tmp/$name.$archive_ext" "$url"; then
+    warn "$name download failed ($url)"
+    rm -rf "$tmp"
+    return 1
+  fi
+  if [[ "$archive_ext" == "zip" ]]; then
+    ( cd "$tmp" && unzip -q "$name.$archive_ext" )
+  else
+    ( cd "$tmp" && tar -xzf "$name.$archive_ext" )
+  fi
+  # Each archive lays the binary out slightly differently. Find it.
+  local bin_path
+  bin_path=$(find "$tmp" -type f -name "$name" -perm -u+x 2>/dev/null | head -n1)
+  if [[ -z "$bin_path" ]]; then
+    bin_path=$(find "$tmp" -type f -name "$name" 2>/dev/null | head -n1)
+  fi
+  if [[ -z "$bin_path" ]]; then
+    warn "extracted archive but no '$name' binary found"
+    rm -rf "$tmp"
+    return 1
+  fi
+  install -m 0755 "$bin_path" "$PREFIX/bin/$name" || { warn "install failed for $name"; rm -rf "$tmp"; return 1; }
+  rm -rf "$tmp"
+  log "installed $name → $PREFIX/bin/$name"
 }
 
 build_and_install() {

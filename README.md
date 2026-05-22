@@ -35,7 +35,7 @@ ngehe recon --target http://10.10.11.5 --markdown recon.md
 
 ### `ngehe surface <domain>`
 
-Subdomain enumeration + live-host probing using the de-facto Kali tools: **amass** (OWASP passive), **subfinder** (fast passive), and **httpx** (probe + tech fingerprint). With `--nuclei`, also runs projectdiscovery's template scanner against the live hosts.
+Subdomain enumeration + live-host probing using established open-source scanners: **amass** (OWASP, comprehensive passive), **subfinder** (projectdiscovery, fast passive), and **httpx** (projectdiscovery, probe + tech fingerprint). With `--nuclei`, also runs projectdiscovery's template scanner against the live hosts.
 
 ```bash
 ngehe surface --domain target.htb                  # prints colored summary to terminal
@@ -74,9 +74,9 @@ ngehe scan --target http://10.10.11.5 --config ngehe.yaml --markdown findings.md
 ngehe scan --har capture.har --config ngehe.yaml --nuclei --markdown findings.md
 ```
 
-## Kali-tool Integrations
+## External Scanner Integrations
 
-ngehe shells out to a handful of best-of-breed Kali tools when present on PATH. Each integration emits findings into the same JSONL with `source:` set so you can filter native vs upstream.
+ngehe shells out to four established open-source scanners when present on PATH. Each integration emits findings into the same JSONL with `source:` set so you can filter native vs upstream.
 
 | Tool | Module / flag | Purpose |
 |---|---|---|
@@ -85,9 +85,9 @@ ngehe shells out to a handful of best-of-breed Kali tools when present on PATH. 
 | **subfinder** (projectdiscovery) | `ngehe surface` | Fast passive subdomain enumeration |
 | **httpx** (projectdiscovery) | `ngehe surface` | Probe hostnames for live HTTP + tech fingerprint |
 
-All four install via `./install.sh --with-extras` (uses apt on Kali / Debian, brew on macOS, `go install` as fallback). They're opt-in: if a binary is missing, ngehe prints a hint and skips it without failing the run.
+All four install via `./install.sh --with-extras` (uses apt on Debian-family distros, brew on macOS, upstream release binaries from each project's GitHub releases as a portable fallback). They're opt-in: if a binary is missing, ngehe prints a hint and skips it without failing the run.
 
-For deeper post-finding exploitation, install separately: `hashcat`, `sqlmap`, `bloodhound`, `impacket` — these are documented as next-step handoffs in the per-finding `next` field.
+For deeper post-finding exploitation, install separately: `hashcat`, `sqlmap`, `bloodhound`, `impacket` — these are documented as next-step handoffs in the per-finding `next` field. The Docker image bundles all of them so you don't need to install anything on the host.
 
 ## Non-Web Service Scanners (ngehe box)
 

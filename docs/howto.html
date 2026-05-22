@@ -205,9 +205,11 @@
     <aside class="toc">
       <h4>On this page</h4>
       <ol>
+        <li><a href="#picker">Pick a command</a></li>
         <li><a href="#container">Run as container</a></li>
-        <li><a href="#prerequisites">Prerequisites (host)</a></li>
-        <li><a href="#kali">Kali tool integrations</a></li>
+        <li><a href="#prerequisites">Install on host</a></li>
+        <li><a href="#commands">The four commands</a></li>
+        <li><a href="#external">External scanners</a></li>
         <li><a href="#workflow">HTB / Box workflow</a></li>
         <li><a href="#chain">From finding to box</a></li>
         <li><a href="#reading">Reading findings</a></li>
@@ -233,10 +235,58 @@
         <strong>Authorized use only.</strong> ngehe sends real attack payloads (SQLi markers, command-injection probes, traversal sequences, JWT manipulation, password sprays). Use only against systems you own, have written permission to test, or that are explicitly designed as CTF / HTB targets.
       </div>
 
+      <h2 id="picker">Pick a command</h2>
+      <p>Match what you have to the right entry point. Every command also accepts <code>--markdown report.md</code> or <code>--out findings.jsonl</code> if you want a file instead of terminal output, and <code>--nuclei</code> to bolt on CVE/exposure template scanning.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:30%">What you have</th><th style="width:30%">Run this</th><th>What you get</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>A <strong>domain name</strong><br/><code>example.com</code></td>
+              <td><code>ngehe surface -d example.com</code></td>
+              <td>Subdomains + live-host map + tech fingerprint. Add <code>--nuclei</code> for CVE templates against live hosts.</td>
+            </tr>
+            <tr>
+              <td>An <strong>IP address</strong><br/><code>10.10.11.5</code></td>
+              <td><code>ngehe box -t 10.10.11.5</code></td>
+              <td>Full-spectrum: nmap + per-service modules (SSH/SMB/LDAP/Kerberos/DBs) + web recon on every HTTP port. The "I just got an HTB IP" entry point.</td>
+            </tr>
+            <tr>
+              <td>A <strong>URL</strong><br/><code>http://10.10.11.5</code></td>
+              <td><code>ngehe recon -t http://10.10.11.5</code></td>
+              <td>Tech fingerprint + sensitive-file probes + directory bruteforce. Fast, passive-ish overview of one web app.</td>
+            </tr>
+            <tr>
+              <td>A <strong>URL + want OWASP detectors</strong></td>
+              <td><code>ngehe scan -t http://...</code></td>
+              <td>SQLi / RCE / SSTI / XSS / LFI / SSRF / JWT / BOLA tests, with payloads. Use <code>--crawl</code> to widen the path list first.</td>
+            </tr>
+            <tr>
+              <td>A <strong>HAR capture</strong> from Burp / DevTools</td>
+              <td><code>ngehe scan --har capture.har --config ngehe.yaml</code></td>
+              <td>Best-signal OWASP scan: replays real requests as configured sessions, finds BOLA / mass-assignment / auth bugs you can't find without real traffic.</td>
+            </tr>
+            <tr>
+              <td>An <strong>OpenAPI spec</strong></td>
+              <td><code>ngehe scan --openapi openapi.yaml --base https://api.example.com</code></td>
+              <td>Same detectors as HAR mode, synthesized from the spec.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Three useful add-ons to any command:</p>
+      <ul>
+        <li><strong><code>--nuclei</code></strong> — also run the nuclei template scanner against discovered live targets. Adds 5–20 minutes, finds CVEs ngehe's native detectors don't cover.</li>
+        <li><strong><code>--markdown report.md</code></strong> — write a human-readable report with attack-chain header. Default is print to terminal.</li>
+        <li><strong><code>--out findings.jsonl</code></strong> — machine-readable JSONL output, one finding per line, ideal for <code>jq</code> filtering or CI.</li>
+      </ul>
+
       <h2 id="container">Run as container</h2>
       <p>If you don't want to install on your host — or you're on Apple Silicon, locked-down corporate macOS, or a server you can't pollute — use the bundled Docker image. Same image works on Linux, macOS (amd64 + arm64), Windows/WSL.</p>
 
-      <p>The image is ~1.5GB and bundles <strong>every</strong> ngehe dependency, every Kali integration, and every handoff tool the per-finding playbook references:</p>
+      <p>The image is ~1.5GB and bundles <strong>every</strong> ngehe dependency, every external scanner ngehe integrates with, and every handoff tool the per-finding playbook references:</p>
       <ul>
         <li>ngehe + nuclei (with templates pre-baked, no first-run download) + amass + subfinder + httpx</li>
         <li>nmap, sqlmap, hashcat, jq, dnsutils</li>
@@ -287,7 +337,7 @@ root@container:/work# hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt
         <strong>When to use container vs host.</strong> Use the container for Mac/Windows, anywhere you can't / won't install nmap + Python tools globally, or anytime you want isolation. Use a host install when you need to integrate ngehe with other host tools (e.g. piping output into a long-running Burp Suite session) or when you want the absolute lowest overhead during long engagements.
       </div>
 
-      <h2 id="prerequisites">Prerequisites (host install)</h2>
+      <h2 id="prerequisites">Install on host</h2>
       <ul>
         <li><strong>Go 1.22+</strong> to build from source.</li>
         <li><strong>nmap</strong> on PATH (<code>ngehe box</code> shells out to it).</li>
@@ -312,25 +362,67 @@ root@container:/work# hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt
         <li><strong>impacket</strong> — heavier AS-REP / Kerberoast / NTLM relay than ngehe's MVP versions.</li>
       </ul>
 
-      <h2 id="kali">Kali tool integrations</h2>
-      <p>ngehe shells out to a handful of community tools when they're on PATH. Each integration writes into the same JSONL with <code>source:</code> set, so you can filter native vs upstream findings:</p>
+      <h2 id="commands">The four commands</h2>
+      <p>Reference for each top-level command, key flags, and when to reach for it. For deep usage patterns see the <a href="#workflow">HTB workflow</a> further down.</p>
+
+      <h3 style="color:var(--accent)"><code>ngehe surface</code> — map a domain's attack surface</h3>
+      <p>Subdomain enumeration + live-host probing + (optional) CVE templates. Use when you have a root domain and want to find what's exposed.</p>
+<pre><span class="ok">$</span> ngehe surface -d example.com                       <span class="cmt"># subdomains + live hosts + tech</span>
+<span class="ok">$</span> ngehe surface -d example.com --nuclei               <span class="cmt"># also nuclei templates (5-20 min)</span>
+<span class="ok">$</span> ngehe surface -d example.com --no-amass --nuclei    <span class="cmt"># skip slower amass</span>
+<span class="ok">$</span> ngehe surface -d example.com --markdown surf.md     <span class="cmt"># write report file</span></pre>
+      <p>Internally: amass + subfinder → dedupe → httpx live-probe → optional nuclei. Each external scanner is opt-out (<code>--no-amass</code>, <code>--no-subfinder</code>, <code>--no-httpx</code>). Missing binaries are skipped with a hint, not a fatal error.</p>
+
+      <h3 style="color:var(--accent)"><code>ngehe box</code> — full-spectrum host scan</h3>
+      <p>nmap + per-service modules + web recon. Use when you have an IP and zero context — the "I just got an HTB IP" entry point.</p>
+<pre><span class="ok">$</span> ngehe box -t 10.10.11.5                                  <span class="cmt"># default: top-100 ports + quick recon</span>
+<span class="ok">$</span> ngehe box -t 10.10.11.5 --domain target.htb              <span class="cmt"># enables DNS subdomain bruteforce</span>
+<span class="ok">$</span> ngehe box -t 10.10.11.5 --profile service                <span class="cmt"># nmap -sV -sC -p- (thorough, slow)</span>
+<span class="ok">$</span> ngehe box -t 10.10.11.5 --no-web                         <span class="cmt"># skip web recon (faster)</span>
+<span class="ok">$</span> ngehe box -t 10.10.11.5 --nuclei --markdown box.md       <span class="cmt"># with nuclei + report</span></pre>
+      <p>For each service nmap detects, ngehe dispatches the right module: SSH (banner + CVE flags), FTP (anon), SMB (null/anon/guest), LDAP (anon-bind + AS-REP roastable), SNMP (community-string brute), DNS (AXFR + subdomain), DBs (default creds), HTTP/HTTPS (full <code>recon</code> flow).</p>
+
+      <h3 style="color:var(--accent)"><code>ngehe recon</code> — single-URL discovery</h3>
+      <p>Tech fingerprint + sensitive-file probes + directory bruteforce against one URL. Lightweight — no active payloads, just probing.</p>
+<pre><span class="ok">$</span> ngehe recon -t http://10.10.11.5                    <span class="cmt"># default: top-500 wordlist depth</span>
+<span class="ok">$</span> ngehe recon -t https://app.example.com --top 0      <span class="cmt"># full wordlist (~4750 paths)</span>
+<span class="ok">$</span> ngehe recon -t http://target --skip-dirbust         <span class="cmt"># skip the slow dir walk</span></pre>
+      <p>Outputs: tech-stack identification (server / framework / CMS), discovered sensitive files (<code>.git</code>, <code>.env</code>, AWS creds, phpinfo), and a list of paths that return non-404 (with 401/403 paths upgraded to MEDIUM since they're real endpoints requiring auth).</p>
+
+      <h3 style="color:var(--accent)"><code>ngehe scan</code> — active OWASP detectors</h3>
+      <p>SQLi / CMDi / SSTI / LFI / SSRF / XSS / JWT / BOLA / mass-assignment / default-creds — the payload-sending detectors. Three input modes:</p>
+<pre><span class="cmt"># Mode 1 — HAR capture (best signal — real auth, real params).</span>
+<span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml
+
+<span class="cmt"># Mode 2 — OpenAPI spec.</span>
+<span class="ok">$</span> ngehe scan --openapi openapi.yaml --base https://api.example.com --config ngehe.yaml
+
+<span class="cmt"># Mode 3 — URL only (synthesizes requests against common param names).</span>
+<span class="ok">$</span> ngehe scan -t http://10.10.11.5 --crawl --config ngehe.yaml
+
+<span class="cmt"># Add nuclei CVE templates as a final pass.</span>
+<span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml --nuclei --markdown scan.md</pre>
+      <p>HAR mode is the most powerful — captures real authenticated traffic from Burp / DevTools / mitmproxy, then replays every captured request through each detector. URL-only mode is good for HTB / lab boxes where you don't need session auth.</p>
+
+      <h2 id="external">External scanners</h2>
+      <p>ngehe shells out to four open-source scanners when they're on PATH. They're independent projects we integrate with — install however you like (apt, brew, our installer's <code>--with-extras</code> flag, or pre-baked in the container). Each integration writes into the same JSONL with <code>source:</code> set, so you can filter native vs upstream findings:</p>
 <pre><span class="ok">$</span> jq -r <span class="str">'select(.source == "nuclei") | "[\(.severity)] \(.rule)\t\(.url)"'</span> findings.jsonl</pre>
 
       <div class="table-wrap">
         <table>
           <thead><tr><th style="width:140px">Tool</th><th style="width:200px">Module / flag</th><th>Purpose</th></tr></thead>
           <tbody>
-            <tr><td><strong>nuclei</strong></td><td><code>scan --nuclei</code><br/><code>box --nuclei</code><br/><code>surface --nuclei</code></td><td>Template-based scanner — thousands of community CVE / default-config / exposure templates. Complements ngehe's hand-written detectors with breadth.</td></tr>
-            <tr><td><strong>amass</strong></td><td><code>ngehe surface</code></td><td>OWASP comprehensive passive subdomain enumeration (slow but thorough).</td></tr>
-            <tr><td><strong>subfinder</strong></td><td><code>ngehe surface</code></td><td>Fast passive subdomain enumeration across many sources (CRT, VirusTotal, Shodan, etc.).</td></tr>
-            <tr><td><strong>httpx</strong></td><td><code>ngehe surface</code></td><td>Probe hostnames for live HTTP, capture status / title / webserver / tech fingerprint.</td></tr>
+            <tr><td><strong>nuclei</strong><br/><span style="color:var(--muted);font-size:12px">projectdiscovery</span></td><td><code>scan --nuclei</code><br/><code>box --nuclei</code><br/><code>surface --nuclei</code></td><td>Template-based scanner — thousands of community CVE / default-config / exposure templates. Complements ngehe's hand-written detectors with breadth.</td></tr>
+            <tr><td><strong>amass</strong><br/><span style="color:var(--muted);font-size:12px">OWASP</span></td><td><code>ngehe surface</code></td><td>Comprehensive passive subdomain enumeration. Slower than subfinder, reaches more sources.</td></tr>
+            <tr><td><strong>subfinder</strong><br/><span style="color:var(--muted);font-size:12px">projectdiscovery</span></td><td><code>ngehe surface</code></td><td>Fast passive subdomain enumeration across many sources (CRT, VirusTotal, Shodan, etc.).</td></tr>
+            <tr><td><strong>httpx</strong><br/><span style="color:var(--muted);font-size:12px">projectdiscovery</span></td><td><code>ngehe surface</code></td><td>Probe hostnames for live HTTP, capture status / title / webserver / tech fingerprint.</td></tr>
           </tbody>
         </table>
       </div>
 
       <h3>Install the extras</h3>
 <pre><span class="ok">$</span> sudo ./install.sh --with-extras   <span class="cmt"># nuclei + amass + subfinder + httpx</span></pre>
-      <p>Resolution order: apt on Kali / Debian (if the package exists), brew on macOS, otherwise pre-built release binaries from each tool's upstream GitHub releases (verified via <code>/releases/latest</code> redirect, downloaded with <code>curl</code>, extracted with <code>unzip</code> / <code>tar</code>). We avoid <code>go install</code> for these — nuclei in particular has fragile transitive deps (<code>interactsh</code>, <code>carvel.dev/ytt</code>) that fail intermittently with checksum errors. Each tool is opt-in; if a binary is missing, ngehe prints a hint and skips it without failing the run.</p>
+      <p>Resolution order: apt on Debian-family distros (if the package exists — Kali bundles all four), brew on macOS, otherwise pre-built release binaries from each tool's upstream GitHub releases (verified via <code>/releases/latest</code> redirect, downloaded with <code>curl</code>, extracted with <code>unzip</code> / <code>tar</code>). We avoid <code>go install</code> for these — nuclei in particular has fragile transitive deps (<code>interactsh</code>, <code>carvel.dev/ytt</code>) that fail intermittently with checksum errors. Each tool is opt-in; if a binary is missing, ngehe prints a hint and skips it without failing the run.</p>
       <p>Verify:</p>
 <pre><span class="ok">$</span> ngehe doctor                     <span class="cmt"># lists every dep with ✓/✗</span></pre>
 

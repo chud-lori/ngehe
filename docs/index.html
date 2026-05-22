@@ -274,7 +274,7 @@
         <p>common.txt (4750), quickhits.txt (2567), default-passwords.csv (2876) — bundled via <code>go:embed</code>. No network fetches at scan time.</p>
       </div>
       <div class="card">
-        <h3>Kali tool integrations</h3>
+        <h3>External scanner integrations</h3>
         <p>Shells out to <strong>nuclei</strong>, <strong>amass</strong>, <strong>subfinder</strong>, <strong>httpx</strong> when present. <code>ngehe surface</code> maps subdomains end-to-end; <code>--nuclei</code> adds template-based CVE coverage to <code>scan</code> / <code>box</code>.</p>
       </div>
     </div>
@@ -386,8 +386,8 @@
 
 <section id="integrations">
   <div class="container">
-    <h2>Kali tool integrations</h2>
-    <p class="section-sub">When these binaries are on PATH, ngehe shells out to them and writes findings into the same JSONL with <code>source:</code> set. Install all four with <code>./install.sh --with-extras</code>.</p>
+    <h2>External scanner integrations</h2>
+    <p class="section-sub">Four independent open-source scanners ngehe shells out to when their binaries are on PATH. Findings land in the same JSONL with <code>source:</code> set so you can filter native vs upstream. Install all four with <code>./install.sh --with-extras</code> — or skip the host install entirely and use the Docker image (everything pre-bundled).</p>
 
     <div class="table-wrap">
       <table>

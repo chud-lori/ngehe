@@ -4,6 +4,8 @@ Pentest CLI for authorized assessments, HTB boxes, and CTFs. ngehe discovers a t
 
 Status: alpha. Useful in real engagements, not yet a finished product.
 
+Website: [chud-lori.github.io/ngehe](https://chud-lori.github.io/ngehe/)
+
 ## What ngehe Does
 
 Three top-level commands.

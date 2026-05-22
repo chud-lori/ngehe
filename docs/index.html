@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ngehe — pentest CLI for HTB, CTFs & authorized assessments</title>
+  <meta name="description" content="Single-binary Go pentest CLI. nmap-driven service discovery, OWASP Top 10 web detectors, SSH/SMB/LDAP/Kerberos/BloodHound modules, per-finding exploit playbook." />
+  <meta property="og:title" content="ngehe — pentest CLI" />
+  <meta property="og:description" content="OWASP Top 10 + AD/SMB/SSH/Kerberos scanners in a single Go binary. Built for HTB boxes and authorized engagements." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --bg-2: #0f141c;
+      --panel: #121925;
+      --panel-2: #182232;
+      --border: #1f2a3a;
+      --text: #e6edf3;
+      --muted: #8b98a5;
+      --accent: #7ee787;
+      --accent-2: #58a6ff;
+      --warn: #f0883e;
+      --crit: #ff7b72;
+      --code-bg: #0a0e14;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    /* nav */
+    nav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(11,15,20,0.85);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
+    nav .brand { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+    nav .brand span { color: var(--accent); }
+    nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 22px; }
+    nav ul a { color: var(--muted); font-weight: 500; font-size: 14px; }
+    nav ul a:hover { color: var(--text); text-decoration: none; }
+
+    /* hero */
+    .hero { padding: 88px 0 64px; border-bottom: 1px solid var(--border); }
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 64px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin: 0 0 20px;
+    }
+    .hero h1 .accent { color: var(--accent); }
+    .hero .lede { font-size: 20px; color: var(--muted); max-width: 720px; margin: 0 0 32px; }
+    .pill {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(126,231,135,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(126,231,135,0.25);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      transition: transform 0.06s ease, background 0.12s ease;
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-1px); }
+    .btn-primary { background: var(--accent); color: #0b0f14; }
+    .btn-primary:hover { background: #95f29c; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--panel); }
+
+    /* code blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.55;
+      margin: 0;
+    }
+    .codecard {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 0;
+    }
+    .codecard .filename {
+      padding: 8px 14px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .codecard pre { border: none; border-radius: 0; }
+
+    .cmt { color: #6c7682; }
+    .kw  { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .fn  { color: #d2a8ff; }
+    .ok  { color: var(--accent); }
+
+    /* sections */
+    section { padding: 72px 0; border-bottom: 1px solid var(--border); }
+    section h2 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+      margin: 0 0 8px;
+    }
+    section .section-sub {
+      color: var(--muted);
+      margin: 0 0 36px;
+      font-size: 17px;
+    }
+
+    /* feature grid */
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    @media (max-width: 820px) { .grid-3 { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 18px; }
+    .card h3 code { color: var(--accent); background: transparent; padding: 0; font-size: 16px; }
+    .card p { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+    .card pre { font-size: 12.5px; padding: 12px 14px; }
+
+    /* tables */
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: var(--panel-2); font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    tr:last-child td { border-bottom: none; }
+    td code { color: var(--accent); background: transparent; padding: 0; }
+    .sev { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .sev.crit { background: rgba(255,123,114,0.15); color: var(--crit); }
+    .sev.high { background: rgba(240,136,62,0.15); color: var(--warn); }
+    .sev.med  { background: rgba(88,166,255,0.15);  color: var(--accent-2); }
+
+    /* split */
+    .split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px; align-items: start; }
+    @media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
+
+    /* arch diagram */
+    .arch-diagram {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    /* footer */
+    footer { padding: 40px 0 60px; color: var(--muted); font-size: 14px; }
+    footer .row { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: center; }
+    footer ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 18px; }
+
+    /* small */
+    ul.bullets { padding-left: 18px; color: var(--muted); margin: 0 0 16px; }
+    ul.bullets li { margin-bottom: 6px; }
+    ul.bullets li strong { color: var(--text); font-weight: 600; }
+
+    .callout {
+      background: rgba(240,136,62,0.07);
+      border: 1px solid rgba(240,136,62,0.3);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin-top: 24px;
+    }
+    .callout strong { color: var(--warn); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <div class="brand">ngehe<span>_</span></div>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#commands">Commands</a></li>
+      <li><a href="#detectors">Detectors</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="https://github.com/chud-lori/ngehe">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <span class="pill">v0.4 · alpha · Apache-2.0</span>
+    <h1>Single-binary <span class="accent">pentest CLI</span><br/>for HTB, CTFs, and authorized engagements.</h1>
+    <p class="lede">
+      ngehe discovers a target's attack surface — web + non-HTTP services — and tests for the
+      OWASP Top 10 plus the standard HTB attack vectors (SSH, SMB, LDAP/AD, Kerberos, default credentials).
+      Every finding ships with a concrete exploit playbook, so you go from <em>"port open"</em> to <em>root.txt</em> in one tool.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#install">Install ngehe →</a>
+      <a class="btn btn-ghost" href="https://github.com/chud-lori/ngehe">View source</a>
+      <a class="btn btn-ghost" href="https://github.com/chud-lori/ngehe/blob/main/HOWTO.md">Full HOWTO</a>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="container">
+    <h2>Why ngehe</h2>
+    <p class="section-sub">One Go binary. No Python venv hell, no plugin sprawl, no GUI tax.</p>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>nmap → per-service dispatch</h3>
+        <p>Shells out to nmap, parses the XML, then auto-fires the right module for every open port — SSH, FTP, SMB, LDAP, SNMP, DNS, DBs, HTTP.</p>
+      </div>
+      <div class="card">
+        <h3>OWASP Top 10 detectors</h3>
+        <p>SQLi, CMDi, SSTI, LFI, SSRF, XSS, BOLA, JWT abuse, mass-assignment, default creds, sensitive-file disclosure, tech fingerprinting.</p>
+      </div>
+      <div class="card">
+        <h3>AD / Kerberos / BloodHound</h3>
+        <p>AS-REP roasting, Kerberoasting, LDAP enumeration, BloodHound JSON collection, NTLM password spray — all native Go.</p>
+      </div>
+      <div class="card">
+        <h3>Baseline-aware oracle</h3>
+        <p>Markers are verified against reflective baselines, so SSTI / CMDi / SSRF detectors don't false-positive on simple echo endpoints.</p>
+      </div>
+      <div class="card">
+        <h3>Exploit playbook per finding</h3>
+        <p>Every finding includes a <code>next</code> field with the literal payload, hashcat invocation, or impacket command to chain it to RCE / shell / DA.</p>
+      </div>
+      <div class="card">
+        <h3>SecLists embedded</h3>
+        <p>common.txt (4750), quickhits.txt (2567), default-passwords.csv (2876) — bundled via <code>go:embed</code>. No network fetches at scan time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="commands">
+  <div class="container">
+    <h2>Three commands</h2>
+    <p class="section-sub">Pick the entry point that matches what you have.</p>
+
+    <div class="grid-3">
+
+      <div class="card">
+        <h3><code>ngehe box</code></h3>
+        <p>"I just got an HTB IP." nmap + every per-service module + web recon — full spectrum.</p>
+        <pre><span class="ok">$</span> ngehe box \
+    --target <span class="str">10.10.11.5</span> \
+    --domain <span class="str">target.htb</span> \
+    --markdown <span class="str">box.md</span></pre>
+      </div>
+
+      <div class="card">
+        <h3><code>ngehe recon</code></h3>
+        <p>URL-only surface mapping: tech fingerprint, sensitive files, dir bruteforce.</p>
+        <pre><span class="ok">$</span> ngehe recon \
+    --target <span class="str">http://10.10.11.5</span> \
+    --markdown <span class="str">recon.md</span></pre>
+      </div>
+
+      <div class="card">
+        <h3><code>ngehe scan</code></h3>
+        <p>Active OWASP detectors. Takes HAR (best signal), OpenAPI spec, or just a URL.</p>
+        <pre><span class="ok">$</span> ngehe scan \
+    --har <span class="str">capture.har</span> \
+    --config <span class="str">ngehe.yaml</span> \
+    --markdown <span class="str">findings.md</span></pre>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="detectors">
+  <div class="container">
+    <h2>Detector library</h2>
+    <p class="section-sub">Web detectors aligned to OWASP Top 10. Each one emits a structured finding with rule, severity, evidence, and next-step.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:240px">OWASP</th><th>Detector</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>A01</strong> Broken Access</td><td><code>bola-cross-user-access</code></td><td>Replay request as each other session; flag similar responses</td></tr>
+          <tr><td></td><td><code>idor-mutated-id</code></td><td>Permute numeric / UUID IDs in path and body</td></tr>
+          <tr><td></td><td><code>lfi-path-traversal</code></td><td><code>../etc/passwd</code>, encoding variants, <code>php://filter</code>, <code>file://</code></td></tr>
+          <tr><td><strong>A02</strong> Crypto Failures</td><td><code>jwt-alg-none</code></td><td>Unsigned token accepted</td></tr>
+          <tr><td></td><td><code>jwt-weak-secret</code></td><td>HS256 token re-signed with weak secret accepted</td></tr>
+          <tr><td></td><td><code>jwt-kid-injection</code></td><td>Path-traversal <code>kid</code> accepted</td></tr>
+          <tr><td><strong>A03</strong> Injection</td><td><code>sqli-error-based</code> / <code>sqli-time-based</code></td><td>DB error string or measurable <code>SLEEP</code> delay</td></tr>
+          <tr><td></td><td><code>cmdi-marker</code> / <code>cmdi-time-based</code></td><td>Shell command output reflected, or sleep delay (blind RCE)</td></tr>
+          <tr><td></td><td><code>ssti</code></td><td><code>{{1337*1331}}</code> evaluated to <code>1779547</code> server-side</td></tr>
+          <tr><td></td><td><code>xss-reflected</code></td><td>Payload reflected unescaped into HTML context</td></tr>
+          <tr><td><strong>A05</strong> Misconfig</td><td><code>sensitive-file</code></td><td>Content-fingerprinted probes for .git, .env, AWS creds, phpinfo</td></tr>
+          <tr><td></td><td><code>dir-discovery</code></td><td>SecLists common.txt directory bruteforce</td></tr>
+          <tr><td></td><td><code>default-credentials</code></td><td>Curated web admin creds tested against configured login URLs</td></tr>
+          <tr><td><strong>A06</strong> Vuln Components</td><td><code>tech-fingerprint</code></td><td>Server / framework / CMS / runtime versions for manual CVE lookup</td></tr>
+          <tr><td><strong>A08</strong> Integrity</td><td><code>mass-assign-reflected</code> / <code>-accepted</code></td><td><code>isAdmin</code> / <code>role</code> / <code>owner</code> injection echoed or silently accepted</td></tr>
+          <tr><td><strong>A10</strong> SSRF</td><td><code>ssrf</code></td><td>Cloud metadata (AWS / GCP / Azure), <code>file://</code>, loopback, gopher / dict</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:56px">Service scanners (<code>ngehe box</code>)</h2>
+    <p class="section-sub">Auto-dispatched per service nmap finds open.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:180px">Service</th><th>Modules</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>SSH</strong></td><td><code>ssh-banner</code>, <code>ssh-old-openssh</code>, <code>ssh-libssh-auth-bypass</code>, <code>ssh-cve-2018-15473</code>, <code>ssh-auth-methods</code>, <code>ssh-none-auth-allowed</code></td></tr>
+          <tr><td><strong>FTP</strong></td><td><code>ftp-banner</code>, <code>ftp-anonymous-allowed</code>, <code>ftp-anonymous-listing</code></td></tr>
+          <tr><td><strong>SMB</strong></td><td><code>smb-null-session-allowed</code>, <code>smb-anonymous-allowed</code>, <code>smb-guest-allowed</code></td></tr>
+          <tr><td><strong>LDAP</strong></td><td><code>ldap-anonymous-bind</code>, <code>ldap-root-dse</code>, <code>ldap-user-enum</code>, <code>ldap-asrep-roastable</code></td></tr>
+          <tr><td><strong>SNMP</strong></td><td><code>snmp-community-accepted</code></td></tr>
+          <tr><td><strong>DNS</strong></td><td><code>dns-axfr-allowed</code>, <code>dns-subdomain</code></td></tr>
+          <tr><td><strong>Databases</strong></td><td><code>db-default-creds-{mysql,postgres,mssql,redis}</code>, <code>db-no-auth-redis</code></td></tr>
+          <tr><td><strong>Active Directory</strong></td><td><code>kerberos-asrep-roast</code>, <code>kerberos-kerberoast</code> (hashcat-format hashes via gokrb5)</td></tr>
+          <tr><td><strong>BloodHound</strong></td><td><code>bloodhound-collect</code> — LDAP-based collection into BloodHound JSON</td></tr>
+          <tr><td><strong>HTTP NTLM</strong></td><td><code>ntlm-spray-hit</code> — password spray against HTTP NTLM endpoints</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="output">
+  <div class="container">
+    <h2>Output: from finding to shell</h2>
+    <p class="section-sub">Every finding carries a <code>next</code> field with the literal payload. The markdown report opens with a "Suggested attack chain" section that orders the criticals and gives you the commands to run.</p>
+
+    <div class="split">
+      <div>
+        <div class="codecard">
+          <div class="filename">findings.jsonl (one finding per line)</div>
+<pre>{
+  <span class="kw">"rule"</span>: <span class="str">"ssti"</span>,
+  <span class="kw">"severity"</span>: <span class="str">"critical"</span>,
+  <span class="kw">"method"</span>: <span class="str">"GET"</span>,
+  <span class="kw">"url"</span>: <span class="str">"http://target/api/greet?name=%7B%7B1337%2A1331%7D%7D"</span>,
+  <span class="kw">"param"</span>: <span class="str">"query:name"</span>,
+  <span class="kw">"payload"</span>: <span class="str">"{{1337*1331}}"</span>,
+  <span class="kw">"evidence"</span>: <span class="str">"Jinja2/Twig evaluated 1337*1331 → 1779547"</span>,
+  <span class="kw">"why"</span>: <span class="str">"template expression evaluated server-side"</span>,
+  <span class="kw">"next"</span>: <span class="str">"RCE via template. Engine in evidence — chain to OS commands:
+    Jinja2: {{config.__class__.__init__.__globals__['os'].popen('id').read()}}
+    Twig:   {{['id']|filter('system')}}"</span>
+}</pre>
+        </div>
+
+        <p style="margin-top:16px; color: var(--muted); font-size: 14px;">Filter to actionable findings:</p>
+        <pre><span class="cmt"># Just the attack-chain candidates</span>
+<span class="ok">$</span> jq <span class="str">'select(.severity == "critical" or .severity == "high") | {rule, url, next}'</span> findings.jsonl</pre>
+      </div>
+
+      <div>
+        <div class="codecard">
+          <div class="filename">box.md (excerpt)</div>
+<pre><span class="kw">## Suggested attack chain</span>
+
+<span class="kw">1.</span> <span class="sev crit">CRITICAL</span> ssti at <span class="ok">/api/greet?name=...</span>
+   → RCE via Jinja2 template injection
+   → upgrade shell: <span class="ok">python3 -c 'import pty; pty.spawn("/bin/bash")'</span>
+
+<span class="kw">2.</span> <span class="sev high">HIGH</span> SUID PATH-hijack candidate on
+   <span class="ok">/usr/local/bin/backup-tool</span> (calls <span class="ok">tar</span> with relative path)
+   → drop a fake <span class="ok">tar</span> in <span class="ok">/tmp</span>; <span class="ok">export PATH=/tmp:$PATH</span>; run binary
+   → likely root shell. <span class="ok">cat /root/root.txt</span>
+</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="container">
+    <h2>Architecture</h2>
+    <p class="section-sub">Each detector and service module is an independent Go package under <code>internal/</code>. They share <code>httpx</code>, <code>fuzz</code>, <code>oracle</code>, <code>finding</code>, and <code>wordlist</code> utilities.</p>
+
+<div class="arch-diagram">            ┌───────────────────────────────────────┐
+            │           target / capture            │
+            └───┬──────────────────┬────────────────┘
+                ▼                  ▼
+       ┌──────────────────┐   ┌──────────────────┐
+       │   ngehe recon    │   │   ngehe scan     │
+       │   (URL only)     │   │  (HAR / OpenAPI) │
+       └────────┬─────────┘   └────────┬─────────┘
+                ▼                      ▼
+       ┌─────────────────────────────────────────┐
+       │ fingerprint   sensitive    dirbust      │
+       │ sqli  cmdi  ssti  lfi  ssrf  xss  creds │
+       │ bola  jwt-abuse  id-mutate  mass-assign │
+       └────────────────────┬────────────────────┘
+                            ▼
+                ┌────────────────────────┐
+                │ JSONL + markdown report│
+                └────────────────────────┘</div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="container">
+    <h2>Install</h2>
+    <p class="section-sub">Detects brew / apt / dnf / pacman / apk, installs <code>nmap</code>, builds, and drops <code>ngehe</code> in <code>/usr/local/bin</code>.</p>
+
+    <div class="codecard">
+      <div class="filename">one-line install</div>
+<pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
+<span class="ok">$</span> cd ngehe
+<span class="ok">$</span> sudo ./install.sh</pre>
+    </div>
+
+    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Non-root install to <code>~/.local/bin</code>:</p>
+    <pre><span class="ok">$</span> PREFIX=$HOME/.local ./install.sh</pre>
+
+    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Verify deps:</p>
+    <pre><span class="ok">$</span> ngehe doctor
+<span class="cmt"># required: nmap                     (for ngehe box)</span>
+<span class="cmt"># recommended: hashcat / sqlmap / bloodhound</span></pre>
+
+    <div class="callout">
+      <strong>Authorized use only.</strong> ngehe sends real payloads — SQL injection markers, command-injection probes, traversal sequences, JWT manipulation, password sprays. Use only against systems you own, have written permission to test, or that are explicitly CTF / HTB targets. Coordinate with the asset owner before scanning production.
+    </div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="container">
+    <h2>HTB quick start</h2>
+    <p class="section-sub">Pwning a typical HTB box with ngehe.</p>
+
+    <div class="codecard">
+      <div class="filename">workflow</div>
+<pre><span class="cmt"># 1. Full-spectrum scan. Hits every open port.</span>
+<span class="ok">$</span> ngehe box --target 10.10.11.5 --domain target.htb --markdown box.md
+
+<span class="cmt"># 2. If a web app is in scope: capture real traffic in Burp / mitmproxy.</span>
+<span class="cmt"># 3. Write ngehe.yaml with sessions + default-creds URLs.</span>
+<span class="ok">$</span> ngehe init --out ngehe.yaml
+
+<span class="cmt"># 4. Active web scan — every detector.</span>
+<span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml --markdown web.md
+
+<span class="cmt"># 5. Read the "Suggested attack chain" header in box.md / web.md.</span>
+<span class="cmt"># 6. Run the literal commands ngehe printed in the next field.</span>
+<span class="cmt"># 7. user.txt → root.txt.</span></pre>
+    </div>
+
+    <p style="margin-top:24px;">
+      Full walkthroughs (web → root.txt, AD → Domain Admin) in
+      <a href="https://github.com/chud-lori/ngehe/blob/main/HOWTO.md">HOWTO.md</a>.
+    </p>
+  </div>
+</section>
+
+<section id="companion">
+  <div class="container">
+    <h2>Companion tools</h2>
+    <p class="section-sub">ngehe is the active component of a three-tool stack. They share a JSONL output convention.</p>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3><a href="https://github.com/chud-lori/cornela">cornela</a></h3>
+        <p>Linux container kernel auditor (eBPF). Host hardening, escape-risk detection.</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/chud-lori/milog">milog</a></h3>
+        <p>nginx + system monitor. Log scanning, exploit detection, host-integrity audits.</p>
+      </div>
+      <div class="card">
+        <h3>ngehe</h3>
+        <p>Web + service pentest CLI. Active testing during authorized assessments and CTFs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="row">
+      <div>
+        <strong>ngehe</strong> — Apache-2.0. SecLists wordlists are MIT.
+      </div>
+      <ul>
+        <li><a href="https://github.com/chud-lori/ngehe">GitHub</a></li>
+        <li><a href="https://github.com/chud-lori/ngehe/blob/main/HOWTO.md">HOWTO</a></li>
+        <li><a href="https://github.com/chud-lori/ngehe/issues">Issues</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+title: ngehe
+description: Pentest CLI for authorized assessments, HTB boxes, and CTFs — OWASP Top 10 + AD/SMB/SSH/Kerberos scanners in a single Go binary.
+url: https://chud-lori.github.io
+baseurl: /ngehe
+
+# Use a plain layout — index.html is self-contained
+theme: null
+plugins: []
+
+include:
+  - index.html
+
+exclude:
+  - README.md

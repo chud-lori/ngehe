@@ -328,7 +328,7 @@ Filter to actionable findings:
 
 ```bash
 # Just the attack-chain candidates
-jq 'select(.severity == "critical" or .severity == "high") | {rule, url, next}' findings.jsonl
+ngehe view findings.jsonl --severity critical,high
 ```
 
 ## Companion Tools

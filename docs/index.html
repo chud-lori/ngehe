@@ -410,8 +410,10 @@
       </table>
     </div>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Each integration is opt-in. If a binary is missing, ngehe prints a hint and skips it without failing the run. Filter native vs upstream findings with jq:</p>
-    <pre><span class="ok">$</span> jq <span class="str">'select(.source == "nuclei")'</span> findings.jsonl</pre>
+    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Each integration is opt-in. If a binary is missing, ngehe prints a hint and skips it without failing the run. Filter native vs upstream findings via <code>ngehe view</code> — no need to remember <code>jq</code>:</p>
+    <pre><span class="ok">$</span> ngehe view findings.jsonl --source nuclei
+<span class="ok">$</span> ngehe view findings.jsonl --source native      <span class="cmt"># just ngehe's own detectors</span>
+<span class="ok">$</span> ngehe view findings.jsonl --source upstream    <span class="cmt"># any external tool (nuclei/amass/subfinder/httpx)</span></pre>
   </div>
 </section>
 
@@ -439,9 +441,15 @@
 }</pre>
         </div>
 
-        <p style="margin-top:16px; color: var(--muted); font-size: 14px;">Filter to actionable findings:</p>
+        <p style="margin-top:16px; color: var(--muted); font-size: 14px;">Filter to actionable findings (no <code>jq</code> needed):</p>
         <pre><span class="cmt"># Just the attack-chain candidates</span>
-<span class="ok">$</span> jq <span class="str">'select(.severity == "critical" or .severity == "high") | {rule, url, next}'</span> findings.jsonl</pre>
+<span class="ok">$</span> ngehe view findings.jsonl --severity critical,high
+
+<span class="cmt"># Convert filtered subset to markdown</span>
+<span class="ok">$</span> ngehe view findings.jsonl --severity critical,high --markdown actionable.md
+
+<span class="cmt"># Pipe URLs into the next stage</span>
+<span class="ok">$</span> ngehe view findings.jsonl --rule httpx-live --urls | xargs -I{} ngehe scan -t {}</pre>
       </div>
 
       <div>

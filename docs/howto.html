@@ -74,9 +74,25 @@
     }
     .toc ol { list-style: none; padding: 0; margin: 0; counter-reset: toc; }
     .toc ol li { counter-increment: toc; margin: 0; }
-    .toc ol > li > a { display: block; padding: 6px 0 6px 22px; color: var(--muted); position: relative; }
-    .toc ol > li > a::before { content: counter(toc) "."; position: absolute; left: 0; color: var(--border); font-family: 'JetBrains Mono', monospace; }
+    .toc ol > li > a {
+      display: block; padding: 6px 0 6px 22px; color: var(--muted); position: relative;
+      transition: color 0.12s ease, border-left-color 0.12s ease;
+      border-left: 2px solid transparent;
+      margin-left: -10px;
+      padding-left: 30px;
+    }
+    .toc ol > li > a::before {
+      content: counter(toc) "."; position: absolute; left: 10px;
+      color: var(--border); font-family: 'JetBrains Mono', monospace;
+      transition: color 0.12s ease;
+    }
     .toc a:hover { color: var(--text); text-decoration: none; }
+    .toc a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+    .toc a.active::before { color: var(--accent); }
 
     .content { min-width: 0; }
     .content h1 { font-size: 44px; letter-spacing: -0.02em; font-weight: 800; line-height: 1.1; margin: 0 0 14px; }
@@ -93,10 +109,12 @@
       font-size: 28px; letter-spacing: -0.02em; font-weight: 800;
       margin: 64px 0 12px; padding-top: 16px;
       border-top: 1px solid var(--border);
+      /* Anchor-jump target offset to clear the sticky nav (height ~52px) */
+      scroll-margin-top: 80px;
     }
     .content h2:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
-    .content h3 { font-size: 19px; font-weight: 700; margin: 32px 0 10px; }
-    .content h4 { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+    .content h3 { font-size: 19px; font-weight: 700; margin: 32px 0 10px; scroll-margin-top: 80px; }
+    .content h4 { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: var(--text); scroll-margin-top: 80px; }
 
     .content p { margin: 0 0 16px; color: var(--text); }
     .content p.muted { color: var(--muted); }
@@ -465,8 +483,10 @@ Type a command to run (Enter to skip / q to quit / e to edit a multi-line block)
       </div>
 
       <h2 id="external">External scanners</h2>
-      <p>ngehe shells out to four open-source scanners when they're on PATH. They're independent projects we integrate with — install however you like (apt, brew, our installer's <code>--with-extras</code> flag, or pre-baked in the container). Each integration writes into the same JSONL with <code>source:</code> set, so you can filter native vs upstream findings:</p>
-<pre><span class="ok">$</span> jq -r <span class="str">'select(.source == "nuclei") | "[\(.severity)] \(.rule)\t\(.url)"'</span> findings.jsonl</pre>
+      <p>ngehe shells out to four open-source scanners when they're on PATH. They're independent projects we integrate with — install however you like (apt, brew, our installer's <code>--with-extras</code> flag, or pre-baked in the container). Each integration writes into the same JSONL with <code>source:</code> set, so you can filter native vs upstream findings via <code>ngehe view</code>:</p>
+<pre><span class="ok">$</span> ngehe view findings.jsonl --source nuclei              <span class="cmt"># just nuclei findings</span>
+<span class="ok">$</span> ngehe view findings.jsonl --source native              <span class="cmt"># just ngehe's own detectors</span>
+<span class="ok">$</span> ngehe view findings.jsonl --source upstream            <span class="cmt"># any external (nuclei/amass/subfinder/httpx)</span></pre>
 
       <div class="table-wrap">
         <table>
@@ -563,13 +583,13 @@ Type a command to run (Enter to skip / q to quit / e to edit a multi-line block)
 
       <h4>Reading the output</h4>
 <pre><span class="cmt"># Critical + high findings only</span>
-<span class="ok">$</span> jq <span class="str">'select(.severity == "critical" or .severity == "high")'</span> box.jsonl
+<span class="ok">$</span> ngehe view box.jsonl --severity critical,high
 
 <span class="cmt"># What services are open</span>
-<span class="ok">$</span> jq -r <span class="str">'select(.rule == "port-open") | .url'</span> box.jsonl
+<span class="ok">$</span> ngehe view box.jsonl --rule port-open --urls
 
 <span class="cmt"># Any default creds?</span>
-<span class="ok">$</span> jq <span class="str">'select(.rule | test("default-creds"))'</span> box.jsonl</pre>
+<span class="ok">$</span> ngehe view box.jsonl --rule default-creds</pre>
 
       <h3><span class="step-num">1</span> Recon</h3>
       <p>You usually start with just an IP and an open port. Get a snapshot of what's running.</p>
@@ -706,8 +726,8 @@ total: 30 findings</pre>
         </table>
       </div>
 
-      <p><code>jq</code> filter to see just the chain candidates:</p>
-<pre><span class="ok">$</span> jq -r <span class="str">'select(.severity == "critical" or .severity == "high") | "[\(.severity)] \(.rule)\n  url: \(.url)\n  next: \(.next)\n"'</span> findings.jsonl</pre>
+      <p>Re-view just the chain candidates (critical + high):</p>
+<pre><span class="ok">$</span> ngehe view findings.jsonl --severity critical,high</pre>
 
       <h2 id="reading">Reading findings</h2>
       <p>JSONL fields:</p>
@@ -723,16 +743,27 @@ total: 30 findings</pre>
   <span class="kw">"why"</span>: <span class="str">"payload triggered a database error string in the response"</span>
 }</pre>
 
-      <p>Filter for what matters:</p>
+      <p>Filter for what matters — use <code>ngehe view</code> (no need to remember <code>jq</code> syntax):</p>
 <pre><span class="cmt"># Critical + high only</span>
-<span class="ok">$</span> jq <span class="str">'select(.severity == "critical" or .severity == "high")'</span> findings.jsonl
+<span class="ok">$</span> ngehe view findings.jsonl --severity critical,high
 
-<span class="cmt"># One line per finding, grouped</span>
-<span class="ok">$</span> jq -r <span class="str">'"\(.severity)\t\(.rule)\t\(.method) \(.path)\t\(.param)"'</span> findings.jsonl \
-    | sort -u
+<span class="cmt"># Just rule X (substring / regex match — case-insensitive)</span>
+<span class="ok">$</span> ngehe view findings.jsonl --rule sqli
+<span class="ok">$</span> ngehe view findings.jsonl --rule <span class="str">'^jwt-'</span>
 
-<span class="cmt"># Just the rules that fired</span>
-<span class="ok">$</span> jq -r .rule findings.jsonl | sort | uniq -c | sort -rn</pre>
+<span class="cmt"># Findings from one external scanner</span>
+<span class="ok">$</span> ngehe view findings.jsonl --source nuclei
+
+<span class="cmt"># Pipe just URLs into the next tool</span>
+<span class="ok">$</span> ngehe view findings.jsonl --rule httpx-live --urls | while read url; do
+    ngehe scan -t <span class="str">"$url"</span>
+  done
+
+<span class="cmt"># Save a filtered subset for ngehe chain</span>
+<span class="ok">$</span> ngehe view findings.jsonl --severity critical,high --out actionable.jsonl
+<span class="ok">$</span> ngehe chain actionable.jsonl</pre>
+
+      <p>Filters are <strong>AND</strong>-combined and case-insensitive (the regex flag <code>(?i)</code> is automatic). Patterns are RE2; substring matches work out of the box (<code>--rule sqli</code> matches <code>sqli-error-based</code>, <code>sqli-time-based</code>, etc.).</p>
 
       <h2 id="scanners">Non-web scanner notes (<code>ngehe box</code>)</h2>
 
@@ -825,11 +856,12 @@ hashes := kerberos.<span class="ok">Kerberoast</span>(kdcHost, <span class="str"
   - http://target/login|user=email,password=passwd,json</pre>
 
       <h2 id="ci">CI integration</h2>
-      <p>Fail the build on any HIGH or CRITICAL finding:</p>
+      <p>Fail the build on any HIGH or CRITICAL finding — no <code>jq</code> needed, <code>ngehe view --urls</code> + <code>wc -l</code> does the count:</p>
 <pre><span class="ok">$</span> ngehe scan --har $CAPTURE --config ngehe.yaml --out findings.jsonl
-<span class="ok">$</span> HIGH=$(jq -c <span class="str">'select(.severity == "high" or .severity == "critical")'</span> findings.jsonl | wc -l)
-<span class="ok">$</span> if [ <span class="str">"$HIGH"</span> -gt 0 ]; then
-    echo <span class="str">"ngehe found $HIGH critical/high-severity issues"</span>
+<span class="ok">$</span> COUNT=$(ngehe view findings.jsonl --severity critical,high --urls | wc -l)
+<span class="ok">$</span> if [ <span class="str">"$COUNT"</span> -gt 0 ]; then
+    echo <span class="str">"ngehe found $COUNT critical/high-severity issues"</span>
+    ngehe view findings.jsonl --severity critical,high
     exit 1
   fi</pre>
       <div class="callout info"><strong>Keep secrets out of CI.</strong> Capture files and tokens contain real credentials. Generate them from short-lived test creds inside the CI environment.</div>
@@ -942,9 +974,9 @@ total: 12 findings</pre>
       </div>
 
       <h4>Step 2 — AS-REP roast</h4>
-<pre><span class="cmt"># Save the user list ngehe produced</span>
-<span class="ok">$</span> jq -r <span class="str">'select(.rule == "ldap-user-enum") | .evidence'</span> box.jsonl \
-    | tr <span class="str">','</span> <span class="str">'\n'</span> | sed <span class="str">'s/^ *//'</span> &gt; users.txt
+<pre><span class="cmt"># Save the user list ngehe produced (one entry per line)</span>
+<span class="ok">$</span> ngehe view box.jsonl --rule ldap-user-enum --urls &gt; users.txt</pre>
+<pre>
 
 <span class="cmt"># AS-REP roast with impacket (the playbook hint points you here)</span>
 <span class="ok">$</span> GetNPUsers.py corp.htb/ -no-pass -usersfile users.txt -outputfile asrep.hashes
@@ -1041,6 +1073,50 @@ total: 12 findings</pre>
     </article>
   </div>
 </div>
+
+<script>
+  // Scroll-spy: highlight the TOC link for whichever h2 is currently in view.
+  (function () {
+    const tocLinks = document.querySelectorAll('.toc a[href^="#"]');
+    if (!tocLinks.length) return;
+
+    const sections = Array.from(document.querySelectorAll('article h2[id]'));
+    if (!sections.length) return;
+
+    const linkFor = (id) => document.querySelector('.toc a[href="#' + id + '"]');
+
+    // Highlight the section closest to the top of the viewport (just below the nav).
+    // We use a fine-grained observer over a horizontal slice 80–120px below the
+    // navbar so the active link updates as the user scrolls past each heading.
+    const setActive = (id) => {
+      tocLinks.forEach((a) => a.classList.remove('active'));
+      const link = linkFor(id);
+      if (link) link.classList.add('active');
+    };
+
+    let currentIndex = 0;
+    setActive(sections[0].id);
+
+    const onScroll = () => {
+      // Find the last section whose top is above the viewport's anchor line (120px).
+      const anchorY = 120;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        const top = sections[i].getBoundingClientRect().top;
+        if (top - anchorY <= 0) idx = i;
+        else break;
+      }
+      if (idx !== currentIndex) {
+        currentIndex = idx;
+        setActive(sections[idx].id);
+      }
+    };
+
+    document.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
 
 <footer>
   <div class="container">

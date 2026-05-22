@@ -85,6 +85,25 @@ ensure_go() {
   die "Go is required for installation."
 }
 
+post_install_sanity() {
+  # Nuclei needs its template database before it can do anything useful.
+  # Fetching it now (foreground, with progress) is much friendlier than
+  # the silent ~1GB download nuclei kicks off on first scan.
+  if command -v nuclei >/dev/null 2>&1; then
+    if [[ -d "$HOME/nuclei-templates" ]] && find "$HOME/nuclei-templates" -name '*.yaml' -print -quit 2>/dev/null | grep -q .; then
+      log "nuclei templates already present in \$HOME/nuclei-templates"
+    else
+      log "fetching nuclei templates (~1GB, one-time)…"
+      if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+        # Run as the invoking user so templates land in their HOME, not root's.
+        sudo -u "$SUDO_USER" nuclei -update-templates -silent 2>&1 | sed 's/^/  /' || warn "nuclei -update-templates failed (run manually later)"
+      else
+        nuclei -update-templates -silent 2>&1 | sed 's/^/  /' || warn "nuclei -update-templates failed (run manually later)"
+      fi
+    fi
+  fi
+}
+
 install_extras() {
   local pm="$1"
   log "installing extras (nuclei, amass, subfinder, httpx)…"
@@ -366,6 +385,7 @@ main() {
 
   if [[ "$WITH_EXTRAS" -eq 1 ]]; then
     install_extras "$pm"
+    post_install_sanity
   else
     log "(skipping extras — re-run with --with-extras for nuclei + amass + subfinder + httpx)"
   fi

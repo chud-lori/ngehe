@@ -23,6 +23,19 @@ func Available() bool {
 	return err == nil
 }
 
+// SmokeTest verifies subfinder is callable.
+func SmokeTest() (ok bool, hint string) {
+	if !Available() {
+		return false, "binary not on PATH — install: ./install.sh --with-extras"
+	}
+	cmd := exec.Command("subfinder", "-version")
+	cmd.Stdout, cmd.Stderr = nil, nil
+	if err := cmd.Run(); err != nil {
+		return false, "binary present but '-version' failed — check architecture / corrupted install"
+	}
+	return true, ""
+}
+
 // Enumerate runs `subfinder -d <domain> -silent`. Returns the discovered
 // hostnames plus a finding per host. Missing tool → empty slices, no error.
 func Enumerate(opts Options) (hosts []string, findings []finding.Finding, err error) {

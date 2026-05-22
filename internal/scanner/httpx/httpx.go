@@ -36,6 +36,19 @@ func Available() bool {
 	return err == nil
 }
 
+// SmokeTest verifies httpx is callable.
+func SmokeTest() (ok bool, hint string) {
+	if !Available() {
+		return false, "binary not on PATH — install: ./install.sh --with-extras"
+	}
+	cmd := exec.Command("httpx", "-version")
+	cmd.Stdout, cmd.Stderr = nil, nil
+	if err := cmd.Run(); err != nil {
+		return false, "binary present but '-version' failed — check architecture / corrupted install"
+	}
+	return true, ""
+}
+
 // Probe runs `httpx -json` against the provided hosts and returns live URLs
 // plus findings (severity info) describing each live host's tech stack.
 func Probe(opts Options) (liveURLs []string, findings []finding.Finding, err error) {

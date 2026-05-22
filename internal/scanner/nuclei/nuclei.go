@@ -13,7 +13,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -51,6 +53,75 @@ type nucleiResult struct {
 func Available() bool {
 	_, err := exec.LookPath("nuclei")
 	return err == nil
+}
+
+// SmokeTest verifies nuclei is callable AND has its template database, so
+// callers can decide whether to invoke it. Returns (false, hint) with a
+// user-actionable hint when something is wrong.
+func SmokeTest() (ok bool, hint string) {
+	if !Available() {
+		return false, "binary not on PATH — install: ./install.sh --with-extras"
+	}
+	cmd := exec.Command("nuclei", "-version")
+	cmd.Stdout, cmd.Stderr = nil, nil
+	if err := cmd.Run(); err != nil {
+		return false, "binary present but '-version' failed — check architecture / corrupted install"
+	}
+	if !TemplatesReady() {
+		return false, "templates missing (~1GB) — run: nuclei -update-templates  (or: ./install.sh --with-extras)"
+	}
+	return true, ""
+}
+
+// TemplatesReady reports whether nuclei has its template database populated.
+// Without templates, nuclei silently triggers a ~1GB download on first run.
+// We pre-check so the caller can decide whether to abort, warn, or fetch.
+//
+// Default install paths checked (matches nuclei's own search order):
+//   $HOME/nuclei-templates
+//   $HOME/.local/nuclei-templates
+//   $XDG_CONFIG_HOME/nuclei/nuclei-templates  (rare; older nuclei layout)
+//
+// Returns true if any of those exists and contains at least one *.yaml.
+func TemplatesReady() bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	candidates := []string{
+		filepath.Join(home, "nuclei-templates"),
+		filepath.Join(home, ".local", "nuclei-templates"),
+	}
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		candidates = append(candidates, filepath.Join(xdg, "nuclei", "nuclei-templates"))
+	}
+	for _, dir := range candidates {
+		if hasYAMLTemplates(dir) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasYAMLTemplates(dir string) bool {
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	// Quick check: any subdirectory with a *.yaml. Don't walk the whole tree
+	// (templates dir is ~6000 files); short-circuit on the first hit.
+	found := false
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() && (strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }
 
 // Scan runs nuclei against the given targets and returns findings.

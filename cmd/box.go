@@ -135,7 +135,9 @@ Detectors per service:
 		}
 
 		if boxNuclei && len(webTargets) > 0 {
-			if nuclei.Available() {
+			if ok, hint := nuclei.SmokeTest(); !ok {
+				fmt.Fprintf(os.Stderr, "nuclei: skipped — %s\n", hint)
+			} else {
 				fmt.Fprintf(os.Stderr, "nuclei: scanning %d web targets…\n", len(webTargets))
 				nf, err := nuclei.Scan(nuclei.Options{
 					Targets:    webTargets,
@@ -148,8 +150,6 @@ Detectors per service:
 				}
 				findings = append(findings, nf...)
 				fmt.Fprintf(os.Stderr, "nuclei: %d findings\n", len(nf))
-			} else {
-				fmt.Fprintln(os.Stderr, "nuclei: --nuclei requested but binary not on PATH (install via ./install.sh --with-extras)")
 			}
 		}
 

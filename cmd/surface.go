@@ -62,7 +62,9 @@ Install with: ./install.sh --with-extras`,
 		}
 
 		if !surfaceNoAmass {
-			if amass.Available() {
+			if ok, hint := amass.SmokeTest(); !ok {
+				fmt.Fprintf(os.Stderr, "amass:     skipped — %s\n", hint)
+			} else {
 				hosts, fs, err := amass.Enumerate(amass.Options{Domain: surfaceDomain, Timeout: timeout})
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "amass: %v\n", err)
@@ -70,13 +72,13 @@ Install with: ./install.sh --with-extras`,
 				findings = append(findings, fs...)
 				add(hosts)
 				fmt.Fprintf(os.Stderr, "amass:     %d hosts\n", len(hosts))
-			} else {
-				fmt.Fprintln(os.Stderr, "amass:     (not installed — skipping; install via ./install.sh --with-extras)")
 			}
 		}
 
 		if !surfaceNoSubfin {
-			if subfinder.Available() {
+			if ok, hint := subfinder.SmokeTest(); !ok {
+				fmt.Fprintf(os.Stderr, "subfinder: skipped — %s\n", hint)
+			} else {
 				hosts, fs, err := subfinder.Enumerate(subfinder.Options{Domain: surfaceDomain, Timeout: timeout})
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "subfinder: %v\n", err)
@@ -84,8 +86,6 @@ Install with: ./install.sh --with-extras`,
 				findings = append(findings, fs...)
 				add(hosts)
 				fmt.Fprintf(os.Stderr, "subfinder: %d hosts\n", len(hosts))
-			} else {
-				fmt.Fprintln(os.Stderr, "subfinder: (not installed — skipping)")
 			}
 		}
 
@@ -98,7 +98,9 @@ Install with: ./install.sh --with-extras`,
 
 		var liveURLs []string
 		if !surfaceNoHTTPX && len(hosts) > 0 {
-			if httpx.Available() {
+			if ok, hint := httpx.SmokeTest(); !ok {
+				fmt.Fprintf(os.Stderr, "httpx:     skipped — %s\n", hint)
+			} else {
 				urls, fs, err := httpx.Probe(httpx.Options{Hosts: hosts, Timeout: timeout, Concurrency: surfaceConc})
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "httpx: %v\n", err)
@@ -106,13 +108,13 @@ Install with: ./install.sh --with-extras`,
 				findings = append(findings, fs...)
 				liveURLs = urls
 				fmt.Fprintf(os.Stderr, "httpx:     %d live HTTP services\n", len(urls))
-			} else {
-				fmt.Fprintln(os.Stderr, "httpx:     (not installed — skipping)")
 			}
 		}
 
 		if surfaceNuclei && len(liveURLs) > 0 {
-			if nuclei.Available() {
+			if ok, hint := nuclei.SmokeTest(); !ok {
+				fmt.Fprintf(os.Stderr, "nuclei:    skipped — %s\n", hint)
+			} else {
 				fmt.Fprintf(os.Stderr, "nuclei:    scanning %d live hosts (this can take a while)…\n", len(liveURLs))
 				fs, err := nuclei.Scan(nuclei.Options{
 					Targets:    liveURLs,
@@ -125,8 +127,6 @@ Install with: ./install.sh --with-extras`,
 				}
 				findings = append(findings, fs...)
 				fmt.Fprintf(os.Stderr, "nuclei:    %d findings\n", len(fs))
-			} else {
-				fmt.Fprintln(os.Stderr, "nuclei:    (not installed — skipping)")
 			}
 		}
 

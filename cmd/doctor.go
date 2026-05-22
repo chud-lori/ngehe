@@ -5,6 +5,10 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/chud-lori/ngehe/internal/scanner/amass"
+	"github.com/chud-lori/ngehe/internal/scanner/httpx"
+	"github.com/chud-lori/ngehe/internal/scanner/nuclei"
+	"github.com/chud-lori/ngehe/internal/scanner/subfinder"
 	"github.com/spf13/cobra"
 )
 
@@ -12,19 +16,23 @@ type dep struct {
 	cmd      string
 	required bool
 	purpose  string
+	// smoke runs an extra runtime/data check beyond LookPath (e.g. nuclei
+	// templates installed, binary executes -version). Returns (ok, hint).
+	// nil = skip the smoke test (just check PATH).
+	smoke func() (bool, string)
 }
 
 var deps = []dep{
-	{"nmap", true, "required by ngehe box (port discovery + service detection)"},
-	{"nuclei", false, "extra — template-based scanner (CVEs, default-config, exposures). Enables --nuclei on scan/box. Install: ./install.sh --with-extras"},
-	{"amass", false, "extra — OWASP passive subdomain enumeration. Used by ngehe surface. Install: ./install.sh --with-extras"},
-	{"subfinder", false, "extra — fast passive subdomain enumeration. Used by ngehe surface. Install: ./install.sh --with-extras"},
-	{"httpx", false, "extra — live-host probe + tech fingerprint. Used by ngehe surface. Install: ./install.sh --with-extras"},
-	{"hashcat", false, "recommended — crack JWT / krb5asrep (-m 18200) / krb5tgs (-m 13100) hashes from ngehe"},
-	{"sqlmap", false, "recommended — deeper SQLi exploitation after ngehe flags sqli-error-based / sqli-time-based"},
-	{"bloodhound", false, "recommended — ingest ngehe's BloodHound JSON output for AD attack-path analysis"},
-	{"impacket-GetNPUsers", false, "recommended — heavier AS-REP roasting if ngehe's Go implementation misses"},
-	{"impacket-GetUserSPNs", false, "recommended — heavier Kerberoasting"},
+	{cmd: "nmap", required: true, purpose: "required by ngehe box (port discovery + service detection)"},
+	{cmd: "nuclei", purpose: "extra — template-based scanner (CVEs, default-config, exposures). Enables --nuclei on scan/box. Install: ./install.sh --with-extras", smoke: nuclei.SmokeTest},
+	{cmd: "amass", purpose: "extra — OWASP passive subdomain enumeration. Used by ngehe surface. Install: ./install.sh --with-extras", smoke: amass.SmokeTest},
+	{cmd: "subfinder", purpose: "extra — fast passive subdomain enumeration. Used by ngehe surface. Install: ./install.sh --with-extras", smoke: subfinder.SmokeTest},
+	{cmd: "httpx", purpose: "extra — live-host probe + tech fingerprint. Used by ngehe surface. Install: ./install.sh --with-extras", smoke: httpx.SmokeTest},
+	{cmd: "hashcat", purpose: "recommended — crack JWT / krb5asrep (-m 18200) / krb5tgs (-m 13100) hashes from ngehe"},
+	{cmd: "sqlmap", purpose: "recommended — deeper SQLi exploitation after ngehe flags sqli-error-based / sqli-time-based"},
+	{cmd: "bloodhound", purpose: "recommended — ingest ngehe's BloodHound JSON output for AD attack-path analysis"},
+	{cmd: "impacket-GetNPUsers", purpose: "recommended — heavier AS-REP roasting if ngehe's Go implementation misses"},
+	{cmd: "impacket-GetUserSPNs", purpose: "recommended — heavier Kerberoasting"},
 }
 
 var doctorCmd = &cobra.Command{
@@ -33,32 +41,52 @@ var doctorCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("ngehe dependency check (%s)\n\n", runtime.GOOS)
 		var missingRequired []string
+		var brokenExtras []string
+
 		for _, d := range deps {
 			path, err := exec.LookPath(d.cmd)
 			mark := "✓"
 			loc := path
+			detail := ""
+
 			if err != nil {
 				mark = "✗"
 				loc = "(not found)"
 				if d.required {
 					missingRequired = append(missingRequired, d.cmd)
 				}
+			} else if d.smoke != nil {
+				// Binary present — run the deeper sanity check.
+				ok, hint := d.smoke()
+				if !ok {
+					mark = "⚠"
+					detail = hint
+					brokenExtras = append(brokenExtras, d.cmd)
+				}
 			}
-			tag := ""
+
+			tag := "  [optional]"
 			if d.required {
 				tag = "  [required]"
-			} else {
-				tag = "  [optional]"
 			}
 			fmt.Printf("  %s %-22s %s%s\n", mark, d.cmd, loc, tag)
 			fmt.Printf("       %s\n", d.purpose)
+			if detail != "" {
+				fmt.Printf("       ⚠ %s\n", detail)
+			}
 		}
 		fmt.Println()
+
 		if len(missingRequired) > 0 {
 			fmt.Println("MISSING REQUIRED DEPENDENCIES:")
 			for _, c := range missingRequired {
 				fmt.Println(" -", c, suggestInstall(c))
 			}
+			return
+		}
+		if len(brokenExtras) > 0 {
+			fmt.Printf("Some optional extras need attention (%d): %v\n", len(brokenExtras), brokenExtras)
+			fmt.Println("ngehe will skip them at runtime with a hint. Required deps are fine.")
 			return
 		}
 		fmt.Println("All required dependencies present.")

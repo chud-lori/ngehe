@@ -33,6 +33,21 @@ func Available() bool {
 	return err == nil
 }
 
+// SmokeTest verifies amass is callable. Note: amass works without API keys
+// but with reduced coverage — we deliberately don't warn about that because
+// many passive sources are free-tier and the tool is still useful as-is.
+func SmokeTest() (ok bool, hint string) {
+	if !Available() {
+		return false, "binary not on PATH — install: ./install.sh --with-extras"
+	}
+	cmd := exec.Command("amass", "-version")
+	cmd.Stdout, cmd.Stderr = nil, nil
+	if err := cmd.Run(); err != nil {
+		return false, "binary present but '-version' failed — check architecture / corrupted install"
+	}
+	return true, ""
+}
+
 // Enumerate runs `amass enum -passive -d <domain>` and returns the discovered
 // subdomains plus one finding-per-host (severity info) for the JSONL report.
 // If amass is missing, returns nil and no error so callers can chain it.

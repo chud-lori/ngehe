@@ -147,7 +147,9 @@ var scanCmd = &cobra.Command{
 		})
 
 		if scanNuclei {
-			if nuclei.Available() {
+			if ok, hint := nuclei.SmokeTest(); !ok {
+				fmt.Fprintf(os.Stderr, "nuclei: skipped — %s\n", hint)
+			} else {
 				targets := uniqueHostURLs(requests, scanTarget)
 				if len(targets) > 0 {
 					fmt.Fprintf(os.Stderr, "nuclei: scanning %d targets…\n", len(targets))
@@ -163,8 +165,6 @@ var scanCmd = &cobra.Command{
 					findings = append(findings, nf...)
 					fmt.Fprintf(os.Stderr, "nuclei: %d findings\n", len(nf))
 				}
-			} else {
-				fmt.Fprintln(os.Stderr, "nuclei: --nuclei requested but binary not on PATH (install via ./install.sh --with-extras)")
 			}
 		}
 

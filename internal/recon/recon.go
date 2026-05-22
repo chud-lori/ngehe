@@ -7,8 +7,10 @@ package recon
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/chud-lori/ngehe/internal/finding"
 	"github.com/chud-lori/ngehe/internal/httpx"
@@ -20,8 +22,9 @@ type Options struct {
 	Target      string
 	Concurrency int
 	TimeoutMS   int
-	Top         int // limit how many wordlist entries to test (0 = all)
+	Top         int  // limit how many wordlist entries to test (0 = all)
 	SkipDirbust bool
+	Verbose     bool // print sub-step progress to stderr
 }
 
 // Run executes all recon sub-detectors and returns aggregated findings.
@@ -32,11 +35,28 @@ func Run(opts Options) []finding.Finding {
 	target := strings.TrimRight(opts.Target, "/")
 	client := &httpClient{c: httpx.NewClient(opts.TimeoutMS), maxBody: 64 * 1024}
 
+	logStep := func(name string, n int, t time.Time) {
+		if opts.Verbose {
+			fmt.Fprintf(os.Stderr, "    recon[%s]: %d findings (%.1fs)\n", name, n, time.Since(t).Seconds())
+		}
+	}
+
 	var findings []finding.Finding
-	findings = append(findings, Fingerprint(client, target)...)
-	findings = append(findings, SensitiveFiles(client, target, opts.Concurrency, limit(wordlist.SensitiveFiles(), opts.Top))...)
+	t := time.Now()
+	fp := Fingerprint(client, target)
+	findings = append(findings, fp...)
+	logStep("fingerprint", len(fp), t)
+
+	t = time.Now()
+	sens := SensitiveFiles(client, target, opts.Concurrency, limit(wordlist.SensitiveFiles(), opts.Top))
+	findings = append(findings, sens...)
+	logStep("sensitive-files", len(sens), t)
+
 	if !opts.SkipDirbust {
-		findings = append(findings, DirBruteforce(client, target, opts.Concurrency, limit(wordlist.CommonPaths(), opts.Top))...)
+		t = time.Now()
+		dirs := DirBruteforce(client, target, opts.Concurrency, limit(wordlist.CommonPaths(), opts.Top))
+		findings = append(findings, dirs...)
+		logStep("dir-bruteforce", len(dirs), t)
 	}
 	return findings
 }

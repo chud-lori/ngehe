@@ -498,6 +498,10 @@
     <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Non-root install to <code>~/.local/bin</code>:</p>
     <pre><span class="ok">$</span> PREFIX=$HOME/.local ./install.sh --with-extras</pre>
 
+    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Uninstall:</p>
+    <pre><span class="ok">$</span> sudo ./install.sh --uninstall                   <span class="cmt"># remove ngehe binary</span>
+<span class="ok">$</span> sudo ./install.sh --uninstall --with-extras     <span class="cmt"># also remove nuclei + amass + subfinder + httpx</span></pre>
+
     <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Verify deps:</p>
     <pre><span class="ok">$</span> ngehe doctor
 <span class="cmt"># required: nmap                     (for ngehe box)</span>

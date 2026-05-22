@@ -6,7 +6,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/chud-lori/ngehe/main/install.sh | sudo bash
 #   PREFIX=$HOME/.local ./install.sh           # non-root install
 #   ./install.sh --with-extras                 # also install nuclei + amass + subfinder + httpx
-#   ./install.sh --uninstall                   # remove ngehe (keeps Go toolchain)
+#   ./install.sh --uninstall                   # remove ngehe binary (keeps extras, Go toolchain)
+#   ./install.sh --uninstall --with-extras     # also remove nuclei + amass + subfinder + httpx
 
 set -euo pipefail
 
@@ -153,10 +154,84 @@ uninstall() {
   fi
 }
 
+uninstall_extras() {
+  local pm="$1"
+  log "removing extras (nuclei, amass, subfinder, httpx)…"
+
+  case "$pm" in
+    apt)
+      # apt remove won't error if pkg is missing thanks to set +e here.
+      set +e
+      for pkg in nuclei amass subfinder httpx-toolkit; do
+        if dpkg -s "$pkg" >/dev/null 2>&1; then
+          DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge "$pkg" && log "apt removed $pkg"
+        fi
+      done
+      set -e
+      ;;
+    brew)
+      if [[ $EUID -eq 0 ]]; then
+        warn "brew refuses root — remove extras manually: brew uninstall nuclei amass subfinder httpx"
+      else
+        for pkg in nuclei amass subfinder httpx; do
+          if brew list --formula 2>/dev/null | grep -qx "$pkg"; then
+            brew uninstall "$pkg" 2>/dev/null && log "brew removed $pkg"
+          fi
+        done
+      fi
+      ;;
+    *)
+      log "no package-manager record — relying on go-install paths"
+      ;;
+  esac
+
+  # `go install` drops binaries in $GOBIN || $GOPATH/bin || ~/go/bin.
+  # Remove from each plausible location for the invoking user — and from
+  # the SUDO_USER home if we were elevated by sudo, so we clean up the
+  # original user's go-install dir.
+  local home_dirs=("$HOME")
+  if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+    local sudo_home
+    sudo_home=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+    [[ -n "$sudo_home" && "$sudo_home" != "$HOME" ]] && home_dirs+=("$sudo_home")
+  fi
+
+  for h in "${home_dirs[@]}"; do
+    for bin in nuclei amass subfinder httpx; do
+      for path in "$h/go/bin/$bin" "$h/.local/bin/$bin"; do
+        if [[ -f "$path" ]]; then
+          rm -f "$path" && log "removed $path"
+        fi
+      done
+    done
+  done
+
+  # Hint at residual config / template dirs nuclei + subfinder leave behind.
+  local note_paths=()
+  for h in "${home_dirs[@]}"; do
+    for d in "$h/nuclei-templates" "$h/.config/nuclei" "$h/.config/subfinder" "$h/.config/amass" "$h/.config/httpx"; do
+      [[ -e "$d" ]] && note_paths+=("$d")
+    done
+  done
+  if [[ "${#note_paths[@]}" -gt 0 ]]; then
+    log "config / template dirs left in place (delete if you want them gone):"
+    for p in "${note_paths[@]}"; do
+      log "  $p"
+    done
+  fi
+}
+
 main() {
   if [[ "$ACTION" == "uninstall" ]]; then
     ensure_root_for_prefix
     uninstall
+    if [[ "$WITH_EXTRAS" -eq 1 ]]; then
+      local pm
+      pm="$(detect_pm)"
+      uninstall_extras "$pm"
+    else
+      log "(extras kept — re-run with --uninstall --with-extras to also remove nuclei, amass, subfinder, httpx)"
+    fi
     return
   fi
 

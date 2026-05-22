@@ -38,6 +38,7 @@ SecLists common.txt wordlist to discover hidden endpoints.`,
 			TimeoutMS:   reconTimeoutMS,
 			Top:         reconTop,
 			SkipDirbust: reconSkipDirbust,
+			Verbose:     true,
 		}
 		fmt.Fprintf(os.Stderr, "ngehe recon → %s (concurrency=%d, timeout=%dms, top=%d)\n",
 			opts.Target, opts.Concurrency, opts.TimeoutMS, opts.Top)

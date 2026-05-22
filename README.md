@@ -189,6 +189,15 @@ Non-root install to `~/.local/bin`:
 PREFIX=$HOME/.local ./install.sh --with-extras
 ```
 
+Uninstall:
+
+```bash
+sudo ./install.sh --uninstall                   # remove ngehe only
+sudo ./install.sh --uninstall --with-extras     # also remove nuclei + amass + subfinder + httpx
+```
+
+The extras-uninstaller is conservative: it uses apt/brew to remove what apt/brew installed, then cleans up `~/go/bin/{nuclei,amass,subfinder,httpx}` and `~/.local/bin/*` from `go install` runs. Config / template dirs (e.g. `~/nuclei-templates`) are listed but kept — delete them manually if you want them gone.
+
 Manual:
 
 ```bash

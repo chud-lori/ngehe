@@ -76,6 +76,8 @@ Detectors per service:
 		for _, svc := range scan.Services {
 			label := fmt.Sprintf("%s/%d %s", svc.Proto, svc.Port, svc.Service)
 			before := len(findings)
+			started := time.Now()
+			fmt.Fprintf(os.Stderr, "→ %-30s scanning…\n", label)
 			switch svc.Service {
 			case "ssh":
 				findings = append(findings, ssh.Scan(svc.Host, svc.Port)...)
@@ -97,7 +99,7 @@ Detectors per service:
 				if !boxNoWeb {
 					target := webURL(svc.Service, svc.Host, svc.Port)
 					webTargets = append(webTargets, target)
-					reconOpts := recon.Options{Target: target, Concurrency: 20, TimeoutMS: 5000, Top: boxTopWords}
+					reconOpts := recon.Options{Target: target, Concurrency: 20, TimeoutMS: 5000, Top: boxTopWords, Verbose: true}
 					reconF := recon.Run(reconOpts)
 					findings = append(findings, reconF...)
 
@@ -114,16 +116,22 @@ Detectors per service:
 					}
 					anon := []session.Session{session.Anon()}
 					webF := []finding.Finding{}
-					webF = append(webF, sqli.Run(synthReqs, anon, emptyCfg)...)
-					webF = append(webF, cmdi.Run(synthReqs, anon, emptyCfg)...)
-					webF = append(webF, ssti.Run(synthReqs, anon, emptyCfg)...)
-					webF = append(webF, lfi.Run(synthReqs, anon, emptyCfg)...)
-					webF = append(webF, ssrf.Run(synthReqs, anon, emptyCfg)...)
-					webF = append(webF, xss.Run(synthReqs, anon, emptyCfg)...)
+					runWeb := func(name string, fn func() []finding.Finding) {
+						t := time.Now()
+						fs := fn()
+						webF = append(webF, fs...)
+						fmt.Fprintf(os.Stderr, "    detector[%s]: %d findings (%.1fs)\n", name, len(fs), time.Since(t).Seconds())
+					}
+					runWeb("sqli", func() []finding.Finding { return sqli.Run(synthReqs, anon, emptyCfg) })
+					runWeb("cmdi", func() []finding.Finding { return cmdi.Run(synthReqs, anon, emptyCfg) })
+					runWeb("ssti", func() []finding.Finding { return ssti.Run(synthReqs, anon, emptyCfg) })
+					runWeb("lfi", func() []finding.Finding { return lfi.Run(synthReqs, anon, emptyCfg) })
+					runWeb("ssrf", func() []finding.Finding { return ssrf.Run(synthReqs, anon, emptyCfg) })
+					runWeb("xss", func() []finding.Finding { return xss.Run(synthReqs, anon, emptyCfg) })
 					findings = append(findings, webF...)
 				}
 			}
-			fmt.Fprintf(os.Stderr, "%-30s → %d findings\n", label, len(findings)-before)
+			fmt.Fprintf(os.Stderr, "  %-28s → %d findings  (%.1fs)\n", label, len(findings)-before, time.Since(started).Seconds())
 		}
 
 		if boxNuclei && len(webTargets) > 0 {

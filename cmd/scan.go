@@ -75,7 +75,7 @@ var scanCmd = &cobra.Command{
 			if scanCrawl {
 				reconFindings := recon.Run(recon.Options{
 					Target: scanTarget, Concurrency: 20, TimeoutMS: 5000,
-					Top: 200, SkipDirbust: false,
+					Top: 200, SkipDirbust: false, Verbose: true,
 				})
 				findings = append(findings, reconFindings...)
 				for _, f := range reconFindings {

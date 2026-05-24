@@ -30,9 +30,11 @@ var deps = []dep{
 	{cmd: "httpx", purpose: "extra — live-host probe + tech fingerprint. Used by ngehe surface. Install: ./install.sh --with-extras", smoke: httpx.SmokeTest},
 	{cmd: "hashcat", purpose: "recommended — crack JWT / krb5asrep (-m 18200) / krb5tgs (-m 13100) hashes from ngehe"},
 	{cmd: "sqlmap", purpose: "recommended — deeper SQLi exploitation after ngehe flags sqli-error-based / sqli-time-based"},
-	{cmd: "bloodhound", purpose: "recommended — ingest ngehe's BloodHound JSON output for AD attack-path analysis"},
+	{cmd: "bloodhound-python", purpose: "recommended — BloodHound collector. Ingest its JSON into BloodHound CE for AD attack-path analysis"},
 	{cmd: "impacket-GetNPUsers", purpose: "recommended — heavier AS-REP roasting if ngehe's Go implementation misses"},
 	{cmd: "impacket-GetUserSPNs", purpose: "recommended — heavier Kerberoasting"},
+	{cmd: "evil-winrm", purpose: "recommended — Windows shell over WinRM after credential/hash theft"},
+	{cmd: "netexec", purpose: "recommended — modern crackmapexec, AD swiss army knife (SMB/LDAP/MSSQL/WinRM)"},
 }
 
 var doctorCmd = &cobra.Command{

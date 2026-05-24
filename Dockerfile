@@ -23,6 +23,16 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags="-s -w" -o /out/ngehe .
 
+# Also build kerbrute from source here (we have Go anyway). The upstream
+# release artifacts (ropnop/kerbrute v1.0.3) don't include arm64 binaries,
+# so building from source is the only reliable cross-arch path.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 https://github.com/ropnop/kerbrute /src/kerbrute \
+    && cd /src/kerbrute \
+    && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+       go build -trimpath -ldflags="-s -w" -o /out/kerbrute .
+
 # ---- Stage 2: fetch projectdiscovery + amass release binaries -----------
 # We use upstream release tarballs (same path install.sh takes on hosts
 # where apt doesn't carry these). Pinning versions makes the image
@@ -97,44 +107,72 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       nmap \
       sqlmap ffuf gobuster \
       hashcat \
-      python3-impacket pipx python3-dev \
+      pipx python3-dev \
       smbclient ldap-utils \
-      ruby ruby-dev gcc make cargo rustc pkg-config libffi-dev libssl-dev \
+      ruby ruby-dev gcc make pkg-config libffi-dev libssl-dev \
       ncat socat openssh-client proxychains4 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install latest stable Rust via rustup — Debian's apt rust is 1.63 which is
+# too old for NetExec's transitive deps (libc 0.2.186 needs rustc >= 1.65).
+# We remove the toolchain in the cleanup stage so it doesn't bloat the image.
+ENV RUSTUP_HOME=/root/.rustup \
+    CARGO_HOME=/root/.cargo \
+    PATH=/root/.cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+      | sh -s -- -y --default-toolchain stable --profile minimal --no-modify-path \
+    && rustc --version
+
 # Python tools via pipx (PEP 668 blocks raw pip on Debian bookworm).
-# Three install sources because not all are on PyPI:
+# Four install sources:
+#   impacket          — full upstream (registers GetNPUsers.py, GetUserSPNs.py,
+#                       secretsdump.py, ticketer.py, etc. as commands).
+#                       Debian's python3-impacket only ships a partial subset
+#                       AND strips the .py source files, so we use pipx instead.
 #   bloodhound        — BloodHound collector (PyPI: "bloodhound", v1.9+)
-#   netexec           — modern crackmapexec; AD swiss army knife (NOT on PyPI, install from git)
-#   enum4linux-ng     — SMB / LDAP enumeration (NOT on PyPI, install from git)
-RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install bloodhound \
+#   netexec           — modern crackmapexec (NOT on PyPI, git install)
+#   enum4linux-ng     — SMB / LDAP enumeration (NOT on PyPI, git install)
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install impacket \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install bloodhound \
     && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install git+https://github.com/Pennyw0rth/NetExec \
     && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install git+https://github.com/cddmp/enum4linux-ng \
     && rm -rf /root/.cache/pip
+
+# Add impacket-<name> symlinks to match Kali's command naming (the per-
+# finding playbook hints reference `impacket-GetNPUsers` etc. — without
+# symlinks users would have to remember the `GetNPUsers.py` form pipx
+# installs by default).
+RUN set -eux; \
+    cd /usr/local/bin; \
+    for script_py in *.py; do \
+        [ -f "$script_py" ] || continue; \
+        base="${script_py%.py}"; \
+        ln -sf "$script_py" "impacket-$base"; \
+    done; \
+    echo "impacket commands available:"; \
+    ls -1 /usr/local/bin/ | grep -E '^(impacket-|.*\.py$)' | sort | head -40
 
 # evil-winrm — Windows shell over WinRM. Ruby gem, no apt package on Debian.
 RUN gem install evil-winrm --no-document \
     && rm -rf /root/.gem/ruby/*/cache
 
-# kerbrute — Kerberos username enumeration + password spray. Release binary.
+# kerbrute is copied from the builder stage (we built it from source there
+# because upstream doesn't publish arm64 release binaries).
+# (See COPY block further down.)
 ARG TARGETARCH
-RUN set -eux; \
-    case "$TARGETARCH" in amd64) ARCH=amd64 ;; arm64) ARCH=arm64 ;; *) echo "unsupported"; exit 1 ;; esac; \
-    KERBRUTE_VER=$(curl -sLI -o /dev/null -w "%{url_effective}" https://github.com/ropnop/kerbrute/releases/latest | sed -E 's|.*/tag/v?||'); \
-    curl -fSL -o /usr/local/bin/kerbrute \
-        "https://github.com/ropnop/kerbrute/releases/download/v${KERBRUTE_VER}/kerbrute_linux_${ARCH}"; \
-    chmod 0755 /usr/local/bin/kerbrute
 
-# dalfox — XSS scanner. Release binary.
+# dalfox — XSS scanner. Asset naming convention is dalfox-<os>-<arch>.tar.gz
+# (hyphens, no version in filename — differs from projectdiscovery's tools).
+# The extracted file is named dalfox-linux-<arch>, not dalfox, so we install
+# the literal extracted path.
 RUN set -eux; \
     case "$TARGETARCH" in amd64) ARCH=amd64 ;; arm64) ARCH=arm64 ;; *) echo "unsupported"; exit 1 ;; esac; \
     DALFOX_VER=$(curl -sLI -o /dev/null -w "%{url_effective}" https://github.com/hahwul/dalfox/releases/latest | sed -E 's|.*/tag/v?||'); \
     curl -fSL -o /tmp/dalfox.tar.gz \
-        "https://github.com/hahwul/dalfox/releases/download/v${DALFOX_VER}/dalfox_${DALFOX_VER}_linux_${ARCH}.tar.gz"; \
-    tar -xzf /tmp/dalfox.tar.gz -C /tmp; \
-    install -m 0755 /tmp/dalfox /usr/local/bin/dalfox; \
-    rm -rf /tmp/dalfox*
+        "https://github.com/hahwul/dalfox/releases/download/v${DALFOX_VER}/dalfox-linux-${ARCH}.tar.gz"; \
+    mkdir -p /tmp/dalfox-extract && tar -xzf /tmp/dalfox.tar.gz -C /tmp/dalfox-extract; \
+    install -m 0755 "/tmp/dalfox-extract/dalfox-linux-${ARCH}" /usr/local/bin/dalfox; \
+    rm -rf /tmp/dalfox.tar.gz /tmp/dalfox-extract
 
 # PayloadsAllTheThings — payload reference repo. Shallow-clone keeps it ~50MB.
 # Available at /opt/PayloadsAllTheThings. Symlink to /opt/payloads for brevity.
@@ -144,19 +182,22 @@ RUN git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings /opt
     && rm -rf /opt/PayloadsAllTheThings/.git
 
 # Shrink image: drop build-only deps. Removed: git (clone done), ruby-dev/
-# gcc/make/python3-dev/cargo/rustc/pkg-config/libffi-dev/libssl-dev were
-# only needed during the build (pipx compiled C+Rust extensions, evil-winrm
-# gem built its native parts, PayloadsAllTheThings was cloned). Runtime
-# doesn't need any of them.
+# gcc/make/python3-dev/pkg-config/libffi-dev/libssl-dev were only needed
+# during build (pipx compiled C+Rust extensions, evil-winrm gem built its
+# native parts, PayloadsAllTheThings was cloned). Plus the rustup toolchain
+# under /root/.cargo + /root/.rustup which is ~700MB unneeded at runtime.
+# Runtime doesn't need any of them.
 RUN apt-get remove --purge -y \
       git \
       ruby-dev gcc make \
-      python3-dev cargo rustc pkg-config libffi-dev libssl-dev \
+      python3-dev pkg-config libffi-dev libssl-dev \
     && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /root/.cargo
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
+              /root/.cargo /root/.rustup
 
-# ngehe binary
-COPY --from=builder /out/ngehe /usr/local/bin/ngehe
+# ngehe binary + kerbrute (both built from source in the builder stage).
+COPY --from=builder /out/ngehe    /usr/local/bin/ngehe
+COPY --from=builder /out/kerbrute /usr/local/bin/kerbrute
 
 # Extras + templates (copied from the staging image)
 COPY --from=extras /out/nuclei    /usr/local/bin/nuclei

@@ -357,51 +357,132 @@ ngehe dependency check (linux)
 
       <p>That's the entire setup. From here on, every command works.</p>
 
-      <h3>Alternative — docker compose</h3>
-      <p>If you prefer compose, it builds + runs in one step:</p>
-<pre><span class="ok">$</span> docker compose run --rm ngehe doctor
-<span class="ok">$</span> docker compose run --rm ngehe surface -d example.com --nuclei</pre>
+      <h3>Install the wrapper to PATH (recommended)</h3>
+      <p>Optional but a big quality-of-life win — drop the wrapper in <code>/usr/local/bin</code> so you can call <code>ngehe</code> from any directory, not just the repo root:</p>
+<pre><span class="ok">$</span> sudo install -m 0755 scripts/ngehe /usr/local/bin/ngehe
+<span class="ok">$</span> cd ~/anywhere
+<span class="ok">$</span> ngehe doctor                                <span class="cmt"># works from anywhere</span></pre>
+      <p>The wrapper resolves the Dockerfile path via its own script location, so rebuilds (<code>ngehe --rebuild</code>) still find the repo even when invoked as <code>/usr/local/bin/ngehe</code>.</p>
+
+      <h3>How the wrapper works</h3>
+      <p>The wrapper is ~50 lines of bash that hides a one-liner <code>docker run</code> incantation. Inside, every invocation does:</p>
+<pre><span class="ok">$</span> docker run --rm -it \
+    --network host \                                  <span class="cmt"># so nmap can talk to RFC1918 / LAN</span>
+    -v <span class="str">"$PWD:/work"</span> \                                <span class="cmt"># your cwd appears as /work in the container</span>
+    -v ngehe-nuclei-templates:/root/nuclei-templates \ <span class="cmt"># nuclei templates persist across runs</span>
+    -v ngehe-config:/root/.config \                   <span class="cmt"># subfinder/amass/httpx API keys persist</span>
+    ngehe:local <span class="ok">"$@"</span></pre>
+      <p>That's the entire magic. Everything else (image build, pull-fallback, <code>--shell</code> alias, <code>--rebuild</code> flag) is convenience on top.</p>
+
+      <h3>Run a scan</h3>
+<pre><span class="ok">$</span> ngehe doctor                                <span class="cmt"># confirm tools available</span>
+<span class="ok">$</span> ngehe surface -d example.com --nuclei
+<span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml
+<span class="ok">$</span> ngehe box --target 10.10.11.5 --markdown box.md</pre>
+
+      <h3>Working with files (mounts)</h3>
+      <p>Because your cwd is mounted at <code>/work</code>, file paths in your commands refer to your real filesystem — no copying needed. Three common patterns:</p>
+<pre><span class="cmt"># 1. Scan a HAR you captured in Burp / DevTools — file lives in your cwd.</span>
+<span class="ok">$</span> ls capture.har ngehe.yaml
+<span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml --out findings.jsonl
+<span class="ok">$</span> ls findings.jsonl                          <span class="cmt"># output written to your real cwd</span>
+
+<span class="cmt"># 2. Walk findings interactively from outside the container.</span>
+<span class="ok">$</span> ngehe view findings.jsonl --severity critical,high
+<span class="ok">$</span> ngehe chain findings.jsonl                  <span class="cmt"># guided exploit replay</span>
+
+<span class="cmt"># 3. Run inside the container, mount a different output dir.</span>
+<span class="ok">$</span> mkdir -p ~/engagements/acme && cd ~/engagements/acme
+<span class="ok">$</span> ngehe box --target 10.10.11.5 --markdown box.md   <span class="cmt"># lands in ~/engagements/acme/</span></pre>
+
+      <h3>Interactive shell</h3>
+      <p>For ad-hoc work — running tools beyond what ngehe wraps — drop into a bash shell with every bundled tool on PATH:</p>
+<pre><span class="ok">$</span> ngehe --shell
+root@container:/work# which kerbrute evil-winrm netexec hashcat sqlmap ffuf
+/usr/local/bin/kerbrute
+/usr/local/bin/evil-winrm
+/usr/local/bin/netexec
+/usr/bin/hashcat
+/usr/bin/sqlmap
+/usr/bin/ffuf
+
+root@container:/work# hashcat -m 18200 asrep.hashes /usr/share/wordlists/rockyou.txt
+root@container:/work# evil-winrm -i 10.10.11.5 -u admin -H 31d6cfe0d16ae931b73c59d7e0c089c0
+root@container:/work# ls /opt/PayloadsAllTheThings/</pre>
+      <p>The shell starts in <code>/work</code> (= your cwd on the host), so any file you create / download / dump is on your real disk when you exit.</p>
 
       <h3>Rebuild after pulling repo updates</h3>
 <pre><span class="ok">$</span> git pull
-<span class="ok">$</span> ./scripts/ngehe --rebuild doctor          <span class="cmt"># or: docker compose build</span></pre>
+<span class="ok">$</span> ngehe --rebuild doctor                      <span class="cmt"># force-rebuild before running</span>
+<span class="cmt"># or:</span>
+<span class="ok">$</span> docker compose build                        <span class="cmt"># equivalent</span></pre>
 
-      <h3>Smaller / faster dev builds</h3>
-<pre><span class="cmt"># Skip the ~1GB nuclei template pre-bake (templates download on first --nuclei run):</span>
-<span class="ok">$</span> docker build --build-arg NO_TEMPLATES=1 -t ngehe:slim .
-<span class="ok">$</span> NGEHE_IMAGE=ngehe:slim ./scripts/ngehe doctor
+      <h3>Alternatives to the wrapper</h3>
+      <p><strong>docker compose</strong> — builds on first run, then runs:</p>
+<pre><span class="ok">$</span> docker compose run --rm ngehe doctor
+<span class="ok">$</span> docker compose run --rm ngehe surface -d example.com --nuclei
+<span class="ok">$</span> docker compose run --rm ngehe --shell</pre>
 
-<span class="cmt"># Multi-arch (linux/amd64 + linux/arm64) — useful if you publish to your own registry:</span>
-<span class="ok">$</span> docker buildx build --platform linux/amd64,linux/arm64 -t myorg/ngehe:latest --push .
-<span class="ok">$</span> NGEHE_IMAGE=myorg/ngehe:latest ./scripts/ngehe doctor    <span class="cmt"># now pulls from your registry</span></pre>
-
-      <h3>One-shot scans (the wrapper)</h3>
-<pre><span class="ok">$</span> ./scripts/ngehe doctor
-<span class="ok">$</span> ./scripts/ngehe surface -d example.com --nuclei
-<span class="ok">$</span> ./scripts/ngehe scan --har capture.har --config ngehe.yaml
-<span class="ok">$</span> ./scripts/ngehe box --target 10.10.11.5 --markdown box.md</pre>
-
-      <p>The wrapper mounts your current directory at <code>/work</code> (so HAR files / config / output land where you'd expect), uses <code>--network host</code> for nmap, and persists nuclei templates + tool configs in named docker volumes between runs.</p>
-
-      <h3>Interactive shell</h3>
-<pre><span class="ok">$</span> ./scripts/ngehe --shell
-root@container:/work# nuclei -version
-root@container:/work# impacket-GetNPUsers -h
-root@container:/work# hashcat -m 18200 hash.txt /usr/share/wordlists/rockyou.txt</pre>
-
-      <h3>Raw docker run (skip the wrapper)</h3>
+      <p><strong>Raw <code>docker run</code></strong> — if you don't want the wrapper or compose at all:</p>
 <pre><span class="ok">$</span> docker run --rm -it \
     --network host \
     -v <span class="str">"$PWD:/work"</span> \
     -v ngehe-nuclei-templates:/root/nuclei-templates \
-    ghcr.io/chud-lori/ngehe:latest surface -d example.com --nuclei</pre>
+    -v ngehe-config:/root/.config \
+    ngehe:local surface -d example.com --nuclei</pre>
 
-      <h3>docker compose</h3>
-<pre><span class="ok">$</span> docker compose run --rm ngehe surface -d example.com --nuclei
-<span class="ok">$</span> docker compose run --rm ngehe --shell</pre>
+      <h3>Smaller / faster dev builds</h3>
+<pre><span class="cmt"># Skip the ~1GB nuclei template pre-bake (templates download on first --nuclei run):</span>
+<span class="ok">$</span> docker build --build-arg NO_TEMPLATES=1 -t ngehe:slim .
+<span class="ok">$</span> NGEHE_IMAGE=ngehe:slim ngehe doctor
+
+<span class="cmt"># Multi-arch (linux/amd64 + linux/arm64) — useful if you publish to your own registry:</span>
+<span class="ok">$</span> docker buildx build --platform linux/amd64,linux/arm64 -t myorg/ngehe:latest --push .
+<span class="ok">$</span> NGEHE_IMAGE=myorg/ngehe:latest ngehe doctor    <span class="cmt"># pulls from your registry instead of building</span></pre>
+
+      <h3>Container troubleshooting</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:38%">Symptom</th><th>Likely cause / fix</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>docker ps</code> shows no ngehe container after a scan</td>
+              <td>Expected. ngehe runs with <code>--rm</code> — container is one-shot, exits when your command finishes, auto-deletes. Not a crash.</td>
+            </tr>
+            <tr>
+              <td>First build takes &gt;30 min or stalls</td>
+              <td>The slow step is NetExec's Rust compilation (aardwolf RDP module). On low-RAM machines, give Docker Desktop / OrbStack at least 4GB. Watch progress: <code>docker compose build --progress plain</code>.</td>
+            </tr>
+            <tr>
+              <td><code>denied: ghcr.io/...</code> or pull errors</td>
+              <td>We don't publish to a public registry yet. The wrapper auto-falls-back to local build. Make sure you're in the cloned repo (so the Dockerfile is reachable) or set <code>NGEHE_IMAGE=ngehe:local</code> explicitly.</td>
+            </tr>
+            <tr>
+              <td>Build out-of-disk-space mid-way</td>
+              <td>Full build needs ~3GB working space. Clean up: <code>docker system prune -af</code> (drops dangling images / build cache) — then retry.</td>
+            </tr>
+            <tr>
+              <td>Output files appear in container but not host</td>
+              <td>You wrote outside <code>/work</code>. Save to <code>/work/...</code> (= your cwd) or pass <code>-v /custom/dir:/work</code> on raw <code>docker run</code>.</td>
+            </tr>
+            <tr>
+              <td>Permission errors on output files (root-owned)</td>
+              <td>Container runs as root, so output files are <code>root:root</code> on the host. Fix: <code>sudo chown -R $USER:$USER findings.jsonl ...</code> after the run, or add <code>--user "$(id -u):$(id -g)"</code> to the wrapper.</td>
+            </tr>
+            <tr>
+              <td>Tool not found / outdated inside container</td>
+              <td>Rebuild with <code>ngehe --rebuild</code>. Tool versions are baked at build time; rebuilds pick up upstream's latest release.</td>
+            </tr>
+            <tr>
+              <td>Need to keep templates / api keys between rebuilds</td>
+              <td>Already automatic — the wrapper mounts named volumes <code>ngehe-nuclei-templates</code> + <code>ngehe-config</code> that survive image rebuilds. Inspect with <code>docker volume ls | grep ngehe</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div class="callout warn">
-        <strong>macOS caveat.</strong> Docker Desktop's <code>--network host</code> goes through a VM bridge. RFC1918 / LAN targets reachable from your Mac are reachable from the container, but raw-socket nmap modes (<code>-sS</code> SYN scan) need <code>--cap-add=NET_RAW --cap-add=NET_ADMIN</code> on the docker run. ngehe uses TCP-connect (<code>-sT</code>) by default, so the basic flow works without extra caps.
+        <strong>macOS network caveat.</strong> Docker Desktop's <code>--network host</code> goes through a VM bridge. RFC1918 / LAN targets reachable from your Mac are reachable from the container, but raw-socket nmap modes (<code>-sS</code> SYN scan) need <code>--cap-add=NET_RAW --cap-add=NET_ADMIN</code> on the docker run. ngehe uses TCP-connect (<code>-sT</code>) by default, so the basic flow works without extra caps. OrbStack handles this slightly better than Docker Desktop on Apple Silicon — recommended if you're scanning LANs from a Mac.
       </div>
 
       <div class="callout info">

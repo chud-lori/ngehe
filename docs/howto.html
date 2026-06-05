@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ngehe — HOWTO</title>
   <meta name="description" content="ngehe practical walkthrough: install, recon, scan, HTB workflows from finding to root.txt." />
+  <meta property="og:title" content="ngehe — HOWTO" />
+  <meta property="og:description" content="Practical walkthrough for the ngehe pentest CLI: install, recon, scan, and chain findings." />
+  <meta property="og:image" content="https://chud-lori.github.io/ngehe/assets/ngehe-icon.png" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="icon" href="assets/ngehe-icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="assets/ngehe-icon.png" />
+  <link rel="manifest" href="site.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -47,6 +54,8 @@
     nav .container { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
     nav .brand { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
     nav .brand a { color: var(--text); }
+    nav .brand a { display: inline-flex; align-items: center; gap: 9px; }
+    nav .brand img { width: 28px; height: 28px; display: block; border-radius: 6px; }
     nav .brand span { color: var(--accent); }
     nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 22px; }
     nav ul a { color: var(--muted); font-weight: 500; font-size: 14px; }
@@ -206,7 +215,7 @@
 
 <nav>
   <div class="container">
-    <div class="brand"><a href="./">ngehe<span>_</span></a></div>
+    <div class="brand"><a href="./"><img src="assets/ngehe-icon.png" alt="" width="28" height="28" />ngehe<span>_</span></a></div>
     <ul>
       <li><a href="./#features">Features</a></li>
       <li><a href="./#commands">Commands</a></li>

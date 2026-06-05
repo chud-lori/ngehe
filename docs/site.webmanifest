@@ -1,0 +1,17 @@
+{
+  "name": "ngehe",
+  "short_name": "ngehe",
+  "description": "Single-binary pentest CLI for authorized assessments, HTB boxes, and CTFs.",
+  "start_url": "/ngehe/",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [
+    {
+      "src": "assets/ngehe-icon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -48,6 +48,11 @@ func Run(opts Options) []finding.Finding {
 	logStep("fingerprint", len(fp), t)
 
 	t = time.Now()
+	cves := KnownCVEs(client, target)
+	findings = append(findings, cves...)
+	logStep("known-cves", len(cves), t)
+
+	t = time.Now()
 	sens := SensitiveFiles(client, target, opts.Concurrency, limit(wordlist.SensitiveFiles(), opts.Top))
 	findings = append(findings, sens...)
 	logStep("sensitive-files", len(sens), t)

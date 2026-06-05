@@ -1,5 +1,9 @@
 # ngehe
 
+<p align="center">
+  <img src="docs/assets/ngehe-icon.png" alt="ngehe icon" width="128" height="128">
+</p>
+
 Pentest CLI for authorized assessments, HTB boxes, and CTFs. ngehe discovers a target's attack surface — web + non-HTTP services — and tests for the OWASP Top 10 plus common HTB attack vectors (SSH, FTP, SMB, LDAP/AD, Kerberos, default credentials) from a single binary.
 
 Status: alpha. Useful in real engagements, not yet a finished product.

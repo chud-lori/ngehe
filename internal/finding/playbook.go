@@ -85,6 +85,13 @@ For AWS, extract IAM role creds → aws-cli with them → escalate in cloud.`,
 	"sensitive-path":       `Path returned 200 but ngehe can't fingerprint it. Open in a browser.`,
 	"dir-discovery":        `Path exists. 401/403 → has real auth, target it. 2xx → explore for forms/uploads/admin panels.`,
 	"server-header":        `Note version for CVE lookup: searchsploit '<server>' <version>`,
+	"cve-2026-42945-nginx-rift": `NGINX Rift — heap buffer overflow in ngx_http_rewrite_module
+(NGINX 0.6.27–1.30.0 / NGINX Plus R32–R36). Confirm + exploit:
+  1. Check config exposure: GET / and HEAD common rewrite paths — look for 5xx / dropped connections.
+  2. PoC (authorized targets only): https://github.com/search?q=CVE-2026-42945+PoC&type=repositories
+  3. RCE is possible only with ASLR disabled — otherwise worker crash / DoS.
+Remediate: upgrade NGINX OSS ≥1.30.1 or NGINX Plus R37; remove '?' from
+rewrite replacements that use unnamed PCRE captures.`,
 	"x-powered-by":         `Note framework version for CVE lookup: searchsploit '<framework>' <version>`,
 	"tech-fingerprint":     `Identified stack. Look up CVEs / known default creds for this tech.`,
 	"dir-bruteforce-skipped": `Target is a catch-all SPA. Inspect the JS bundle directly — it reveals real API endpoints.`,

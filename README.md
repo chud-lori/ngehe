@@ -12,7 +12,7 @@ Website: [chud-lori.github.io/ngehe](https://chud-lori.github.io/ngehe/)
 
 ## What ngehe Does
 
-Three top-level commands.
+Core commands.
 
 ### `ngehe box <target>`
 
@@ -22,7 +22,7 @@ Full-spectrum scan. Shells out to nmap, then dispatches per-service scanners (SS
 ngehe box --target 10.10.11.5 --domain target.htb --markdown box.md
 ```
 
-Requires `nmap` on PATH. For AD-flavored boxes also see `ngehe bloodhound` and `ngehe kerberos asrep / kerberoast` flags (described under HOWTO).
+Requires `nmap` on PATH. AD-flavored boxes are handled through the LDAP, Kerberos, BloodHound, SMB, and NTLM modules that `ngehe box` dispatches when the relevant services are present.
 
 ### `ngehe recon <target>`
 
@@ -134,6 +134,8 @@ Bundled service modules. Each fires automatically when nmap detects the relevant
 | | `dir-discovery` | SecLists common.txt directory bruteforce |
 | | `default-credentials` | Curated web admin creds tested against configured login URLs |
 | **A06 Vulnerable Components** | `tech-fingerprint` | Identifies server, framework, CMS, runtime versions for manual CVE lookup |
+| | `cve-2026-41940-cpanel-whm-auth-bypass` | Non-invasive cPanel/WHM/WP Squared version check for the auth-bypass vulnerable branches |
+| | `cve-2026-42945-nginx-rift` | Banner-based NGINX Rift vulnerable-version check without crash/DoS payloads |
 | | `server-header` / `x-powered-by` | Raw header disclosure |
 | **A07 Authentication Failures** | `default-credentials` | (see A05) |
 | | `jwt-*` | (see A02) |
@@ -310,7 +312,7 @@ ngehe init --out ngehe.yaml
 ngehe scan --har capture.har --config ngehe.yaml --markdown web.md
 ```
 
-For AD-heavy boxes, after `ngehe box` reveals LDAP/Kerberos services and surfaces user names, hand off to `impacket` or use ngehe's lightweight `kerberos asrep` / `kerberoast` modules from a future CLI subcommand wiring. The Go-side primitives are in `internal/scanner/kerberos/`.
+For AD-heavy boxes, after `ngehe box` reveals LDAP/Kerberos services and surfaces user names, hand off to `impacket` for deeper attacks. ngehe's lightweight Kerberos primitives live in `internal/scanner/kerberos/` and are used by the service modules where enough target context is available.
 
 See [HOWTO.md](HOWTO.md) for a full walkthrough.
 

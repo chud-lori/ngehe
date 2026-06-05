@@ -309,7 +309,7 @@ The current implementation tries null / anonymous / guest sessions with `go-smb2
 
 ### Kerberos (AS-REP roast + Kerberoast)
 
-The Go primitives are in `internal/scanner/kerberos/`. Calling pattern (from a future CLI subcommand or programmatic use):
+The Go primitives are in `internal/scanner/kerberos/`. Calling pattern for programmatic use:
 
 ```go
 // AS-REP roast — no creds required.

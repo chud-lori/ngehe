@@ -14,10 +14,13 @@ var rootCmd = &cobra.Command{
 SSH, FTP, SMB, LDAP/AD, SNMP, DNS, databases, Kerberos (AS-REP roast +
 Kerberoast), BloodHound collection, NTLM spray.
 
-Three top-level commands:
-  box     Shell out to nmap and dispatch per-service scanners
-  recon   URL-only web discovery (tech fingerprint, sensitive files, dirbust)
-  scan    Active scan from HAR / OpenAPI (BOLA, JWT, SQLi, RCE, SSTI, ...)
+Core workflows:
+  box      Shell out to nmap and dispatch per-service scanners
+  surface  Enumerate subdomains and live HTTP hosts
+  recon    URL-only web discovery (tech fingerprint, sensitive files, dirbust)
+  scan     Active scan from HAR / OpenAPI / URL input
+  chain    Walk findings interactively and run next-step commands
+  view     Filter JSONL findings without jq
 
 Authorized testing only. Use against systems you own or have permission
 to assess.`,

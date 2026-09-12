@@ -3,19 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ngehe — pentest CLI for HTB, CTFs & authorized assessments</title>
+  <title>ngehe: pentest CLI for HTB, CTFs, and authorized assessments</title>
   <meta name="description" content="Single-binary Go pentest CLI. nmap-driven service discovery, OWASP Top 10 web detectors, SSH/SMB/LDAP/Kerberos/BloodHound modules, per-finding exploit playbook." />
-  <meta property="og:title" content="ngehe — pentest CLI" />
-  <meta property="og:description" content="OWASP Top 10 + AD/SMB/SSH/Kerberos scanners in a single Go binary. Built for HTB boxes and authorized engagements." />
+  <meta property="og:title" content="ngehe: pentest CLI" />
+  <meta property="og:description" content="OWASP Top 10 plus AD/SMB/SSH/Kerberos scanners in a single Go binary. Built for HTB boxes and authorized engagements." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://chud-lori.github.io/ngehe/assets/ngehe-icon.png" />
   <meta name="theme-color" content="#0b0f14" />
   <link rel="icon" href="assets/ngehe-icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="assets/ngehe-icon.png" />
   <link rel="manifest" href="site.webmanifest" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg: #0b0f14;
@@ -42,26 +39,41 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
     }
+    body { overflow-x: hidden; }
     code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
 
     a { color: var(--accent-2); text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    /* one visible focus ring for every keyboard-reachable control (R-32) */
+    a:focus-visible,
+    button:focus-visible,
+    .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
 
     .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
     /* nav */
     nav {
       position: sticky; top: 0; z-index: 10;
-      background: rgba(11,15,20,0.85);
+      background: rgba(11,15,20,0.9);
       backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--border);
     }
-    nav .container { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
-    nav .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+    nav .container { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 8px; padding-bottom: 8px; }
+    nav .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; min-height: 44px; }
     nav .brand img { width: 28px; height: 28px; display: block; border-radius: 6px; }
     nav .brand span { color: var(--accent); }
-    nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 22px; }
-    nav ul a { color: var(--muted); font-weight: 500; font-size: 14px; }
+    nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; overflow-x: auto; }
+    nav ul::-webkit-scrollbar { height: 0; }
+    nav ul a {
+      color: var(--muted); font-weight: 500; font-size: 14px;
+      display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px;
+      white-space: nowrap;
+    }
     nav ul a:hover { color: var(--text); text-decoration: none; }
 
     /* hero */
@@ -92,20 +104,21 @@
     }
     .pill {
       display: inline-block;
-      padding: 4px 12px;
-      border-radius: 999px;
+      padding: 5px 12px;
+      border-radius: 6px;
       background: rgba(126,231,135,0.1);
       color: var(--accent);
       border: 1px solid rgba(126,231,135,0.25);
       font-size: 12px;
       font-weight: 600;
       letter-spacing: 0.04em;
-      text-transform: uppercase;
       margin-bottom: 24px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
     }
     .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
+      min-height: 44px;
       padding: 12px 20px;
       border-radius: 8px;
       font-weight: 600;
@@ -129,24 +142,39 @@
       line-height: 1.55;
       margin: 0;
     }
-    .codecard {
+
+    /* snippet: bordered code block with a toolbar that carries a working copy button */
+    .snippet {
       background: var(--code-bg);
       border: 1px solid var(--border);
       border-radius: 10px;
       overflow: hidden;
       margin: 0;
     }
-    .codecard .filename {
-      padding: 8px 14px;
+    .snippet-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 0 8px 0 14px;
+      min-height: 44px;
       background: var(--panel-2);
       border-bottom: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 12px;
-      font-family: 'JetBrains Mono', monospace;
     }
-    .codecard pre { border: none; border-radius: 0; }
+    .snippet-bar .label { color: var(--muted); font-size: 12px; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .snippet pre { border: none; border-radius: 0; }
+    .copy-btn {
+      display: inline-flex; align-items: center;
+      min-height: 44px; padding: 0 12px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font: inherit; font-size: 12px; font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { color: var(--text); }
+    .copy-btn[data-state="done"] { color: var(--accent); }
+    .copy-btn[data-state="fail"] { color: var(--warn); }
 
-    .cmt { color: #6c7682; }
+    .cmt { color: #7c8794; }
     .kw  { color: #ff7b72; }
     .str { color: #a5d6ff; }
     .fn  { color: #d2a8ff; }
@@ -180,6 +208,10 @@
     .card p { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
     .card pre { font-size: 12.5px; padding: 12px 14px; }
 
+    /* the flagship command gets a wider treatment than the rest (hierarchy, R-14) */
+    .card.lead { grid-column: 1 / -1; background: var(--panel-2); }
+    @media (max-width: 820px) { .card.lead { grid-column: auto; } }
+
     /* tables */
     .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -202,7 +234,7 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 22px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
       font-size: 12.5px;
       line-height: 1.5;
       color: var(--muted);
@@ -213,12 +245,15 @@
     /* footer */
     footer { padding: 40px 0 60px; color: var(--muted); font-size: 14px; }
     footer .row { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: center; }
-    footer ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 18px; }
+    footer ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    footer ul a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; }
 
     /* small */
     ul.bullets { padding-left: 18px; color: var(--muted); margin: 0 0 16px; }
     ul.bullets li { margin-bottom: 6px; }
     ul.bullets li strong { color: var(--text); font-weight: 600; }
+
+    .note { color: var(--muted); font-size: 14px; margin: 18px 0 0; }
 
     .callout {
       background: rgba(240,136,62,0.07);
@@ -228,6 +263,16 @@
       margin-top: 24px;
     }
     .callout strong { color: var(--warn); }
+
+    .sample-tag {
+      display: inline-block;
+      margin-bottom: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
   </style>
 </head>
 <body>
@@ -239,6 +284,7 @@
       <li><a href="#features">Features</a></li>
       <li><a href="#commands">Commands</a></li>
       <li><a href="#detectors">Detectors</a></li>
+      <li><a href="#output">Output</a></li>
       <li><a href="#container">Container</a></li>
       <li><a href="#install">Install</a></li>
       <li><a href="howto.html">HOWTO</a></li>
@@ -250,17 +296,17 @@
 <header class="hero">
   <div class="container">
     <div class="hero-copy">
-      <span class="pill">v0.4 · alpha · Apache-2.0</span>
+      <span class="pill">alpha · Apache-2.0</span>
       <h1>Single-binary <span class="accent">pentest CLI</span><br/>for HTB, CTFs, and authorized engagements.</h1>
       <p class="lede">
-        ngehe discovers a target's attack surface — web + non-HTTP services — and tests for the
-        OWASP Top 10 plus the standard HTB attack vectors (SSH, SMB, LDAP/AD, Kerberos, default credentials).
-        Every finding ships with a concrete exploit playbook, so you go from <em>"port open"</em> to <em>root.txt</em> in one tool.
+        ngehe discovers a target's attack surface, web and non-HTTP services, and tests for the
+        OWASP Top 10 plus the standard HTB attack vectors: SSH, SMB, LDAP/AD, Kerberos, and default credentials.
+        Every finding ships with a concrete exploit next-step, so you move from an open port toward root.txt without switching tools.
       </p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="#install">Install ngehe →</a>
+        <a class="btn btn-primary" href="#install">Install ngehe</a>
         <a class="btn btn-ghost" href="https://github.com/chud-lori/ngehe">View source</a>
-        <a class="btn btn-ghost" href="howto.html">Full HOWTO</a>
+        <a class="btn btn-ghost" href="howto.html">Read the HOWTO</a>
       </div>
     </div>
     <div class="hero-mark" aria-hidden="true">
@@ -271,52 +317,53 @@
 
 <section id="features">
   <div class="container">
-    <h2>Why ngehe</h2>
-    <p class="section-sub">One Go binary. No Python venv hell, no plugin sprawl, no GUI tax.</p>
+    <h2>What ngehe does</h2>
+    <p class="section-sub">One Go binary. No Python venv to manage, no plugin sprawl, no GUI.</p>
 
     <div class="grid-3">
       <div class="card">
-        <h3>nmap → per-service dispatch</h3>
-        <p>Shells out to nmap, parses the XML, then auto-fires the right module for every open port — SSH, FTP, SMB, LDAP, SNMP, DNS, DBs, HTTP.</p>
+        <h3>nmap to per-service dispatch</h3>
+        <p>Shells out to nmap, parses the XML, then fires the right module for every open port: SSH, FTP, SMB, LDAP, SNMP, DNS, databases, HTTP.</p>
       </div>
       <div class="card">
         <h3>OWASP Top 10 detectors</h3>
-        <p>SQLi, CMDi, SSTI, LFI, SSRF, XSS, BOLA, JWT abuse, mass-assignment, default creds, sensitive-file disclosure, tech fingerprinting.</p>
+        <p>SQLi, CMDi, SSTI, LFI, SSRF, XSS, BOLA, JWT abuse, mass-assignment, default creds, sensitive-file disclosure, and tech fingerprinting.</p>
       </div>
       <div class="card">
-        <h3>AD / Kerberos / BloodHound</h3>
-        <p>AS-REP roasting, Kerberoasting, LDAP enumeration, BloodHound JSON collection, NTLM password spray — all native Go.</p>
+        <h3>AD, Kerberos, BloodHound</h3>
+        <p>AS-REP roasting, Kerberoasting, LDAP enumeration, BloodHound JSON collection, and NTLM password spray, all in native Go.</p>
       </div>
       <div class="card">
         <h3>Baseline-aware oracle</h3>
-        <p>Markers are verified against reflective baselines, so SSTI / CMDi / SSRF detectors don't false-positive on simple echo endpoints.</p>
+        <p>Markers are verified against reflective baselines, so the SSTI, CMDi, and SSRF detectors do not false-positive on simple echo endpoints.</p>
       </div>
       <div class="card">
-        <h3>Exploit playbook per finding</h3>
-        <p>Every finding includes a <code>next</code> field with the literal payload, hashcat invocation, or impacket command to chain it to RCE / shell / DA.</p>
+        <h3>Exploit next-step per finding</h3>
+        <p>Every finding includes a <code>next</code> field with the literal payload, hashcat invocation, or impacket command to chain it toward RCE, a shell, or Domain Admin.</p>
       </div>
       <div class="card">
         <h3>SecLists embedded</h3>
-        <p>common.txt (4750), quickhits.txt (2567), default-passwords.csv (2876) — bundled via <code>go:embed</code>. No network fetches at scan time.</p>
+        <p>common.txt (4750 paths), quickhits.txt (2567 paths), and default-passwords.csv (2876 rows), bundled via <code>go:embed</code>. No network fetches at scan time.</p>
       </div>
-      <div class="card">
-        <h3>External scanner integrations</h3>
-        <p>Shells out to <strong>nuclei</strong>, <strong>amass</strong>, <strong>subfinder</strong>, <strong>httpx</strong> when present. <code>ngehe surface</code> maps subdomains end-to-end; <code>--nuclei</code> adds template-based CVE coverage to <code>scan</code> / <code>box</code>.</p>
-      </div>
+    </div>
+
+    <div class="card lead" style="margin-top:18px">
+      <h3>External scanner integrations</h3>
+      <p>Shells out to <strong>nuclei</strong>, <strong>amass</strong>, <strong>subfinder</strong>, and <strong>httpx</strong> when their binaries are on PATH. <code>ngehe surface</code> maps subdomains end to end, and <code>--nuclei</code> adds template-based CVE coverage to <code>scan</code> and <code>box</code>. Each integration is opt-in: a missing binary prints a hint and is skipped, it does not fail the run.</p>
     </div>
   </div>
 </section>
 
 <section id="commands">
   <div class="container">
-    <h2>Five commands</h2>
-    <p class="section-sub">Pick the entry point that matches what you have.</p>
+    <h2>The command set</h2>
+    <p class="section-sub">Six working commands. Pick the entry point that matches what you have in hand. Two helpers, <code>ngehe init</code> and <code>ngehe doctor</code>, write a sample config and check dependencies.</p>
 
     <div class="grid-3">
 
-      <div class="card">
+      <div class="card lead">
         <h3><code>ngehe box</code></h3>
-        <p>"I just got an HTB IP." nmap + every per-service module + web recon — full spectrum. <code>--nuclei</code> adds template scan.</p>
+        <p>The "I just got an HTB IP" entry point. Runs nmap, dispatches every per-service module, and runs web recon on any HTTP ports. Add <code>--nuclei</code> for a template scan.</p>
         <pre><span class="ok">$</span> ngehe box \
     --target <span class="str">10.10.11.5</span> \
     --domain <span class="str">target.htb</span> \
@@ -325,7 +372,7 @@
 
       <div class="card">
         <h3><code>ngehe surface</code></h3>
-        <p>Subdomain enum + live-host probe. Chains amass + subfinder + httpx (+ optional nuclei).</p>
+        <p>Subdomain enumeration plus a live-host probe. Chains amass, subfinder, and httpx, with optional nuclei.</p>
         <pre><span class="ok">$</span> ngehe surface \
     --domain <span class="str">target.htb</span> \
     --nuclei \
@@ -334,7 +381,7 @@
 
       <div class="card">
         <h3><code>ngehe recon</code></h3>
-        <p>URL-only surface mapping: tech fingerprint, sensitive files, dir bruteforce.</p>
+        <p>URL-only surface mapping: tech fingerprint, sensitive files, directory bruteforce.</p>
         <pre><span class="ok">$</span> ngehe recon \
     --target <span class="str">http://10.10.11.5</span> \
     --markdown <span class="str">recon.md</span></pre>
@@ -342,7 +389,7 @@
 
       <div class="card">
         <h3><code>ngehe scan</code></h3>
-        <p>Active OWASP detectors. Takes HAR (best signal), OpenAPI spec, or just a URL. <code>--nuclei</code> bolts on template scan.</p>
+        <p>Active OWASP detectors. Takes a HAR (best signal), an OpenAPI spec, or just a URL. <code>--nuclei</code> bolts on a template scan.</p>
         <pre><span class="ok">$</span> ngehe scan \
     --har <span class="str">capture.har</span> \
     --config <span class="str">ngehe.yaml</span> \
@@ -352,9 +399,16 @@
 
       <div class="card">
         <h3><code>ngehe chain</code></h3>
-        <p>Guided exploit walkthrough. Reads a findings JSONL, walks each finding's playbook, prompts you to run / edit / skip the command. Bridge from "found" to "shell."</p>
+        <p>Guided exploit walkthrough. Reads a findings JSONL, walks each finding's next-step, and prompts you to run, edit, or skip the command. The bridge from "found" to "shell".</p>
         <pre><span class="ok">$</span> ngehe chain <span class="str">findings.jsonl</span>
 <span class="ok">$</span> ngehe chain <span class="str">findings.jsonl</span> --all</pre>
+      </div>
+
+      <div class="card">
+        <h3><code>ngehe view</code></h3>
+        <p>Filter a findings JSONL without <code>jq</code>. Slice by severity, rule, param, or source, and re-emit as JSONL, markdown, or bare URLs.</p>
+        <pre><span class="ok">$</span> ngehe view <span class="str">findings.jsonl</span> \
+    --severity <span class="str">critical,high</span></pre>
       </div>
 
     </div>
@@ -364,7 +418,7 @@
 <section id="detectors">
   <div class="container">
     <h2>Detector library</h2>
-    <p class="section-sub">Web detectors aligned to OWASP Top 10. Each one emits a structured finding with rule, severity, evidence, and next-step.</p>
+    <p class="section-sub">Web detectors aligned to the OWASP Top 10. Each emits a structured finding with a rule, severity, evidence, and a next-step.</p>
 
     <div class="table-wrap">
       <table>
@@ -372,30 +426,30 @@
           <tr><th style="width:240px">OWASP</th><th>Detector</th><th>What it does</th></tr>
         </thead>
         <tbody>
-          <tr><td><strong>A01</strong> Broken Access</td><td><code>bola-cross-user-access</code></td><td>Replay request as each other session; flag similar responses</td></tr>
-          <tr><td></td><td><code>idor-mutated-id</code></td><td>Permute numeric / UUID IDs in path and body</td></tr>
+          <tr><td><strong>A01</strong> Broken Access</td><td><code>bola-cross-user-access</code></td><td>Replays a request as each other session, then flags similar responses</td></tr>
+          <tr><td></td><td><code>idor-mutated-id</code></td><td>Permutes numeric and UUID IDs in the path and body</td></tr>
           <tr><td></td><td><code>lfi-path-traversal</code></td><td><code>../etc/passwd</code>, encoding variants, <code>php://filter</code>, <code>file://</code></td></tr>
           <tr><td><strong>A02</strong> Crypto Failures</td><td><code>jwt-alg-none</code></td><td>Unsigned token accepted</td></tr>
-          <tr><td></td><td><code>jwt-weak-secret</code></td><td>HS256 token re-signed with weak secret accepted</td></tr>
+          <tr><td></td><td><code>jwt-weak-secret</code></td><td>HS256 token re-signed with a weak secret is accepted</td></tr>
           <tr><td></td><td><code>jwt-kid-injection</code></td><td>Path-traversal <code>kid</code> accepted</td></tr>
-          <tr><td><strong>A03</strong> Injection</td><td><code>sqli-error-based</code> / <code>sqli-time-based</code></td><td>DB error string or measurable <code>SLEEP</code> delay</td></tr>
-          <tr><td></td><td><code>cmdi-marker</code> / <code>cmdi-time-based</code></td><td>Shell command output reflected, or sleep delay (blind RCE)</td></tr>
+          <tr><td><strong>A03</strong> Injection</td><td><code>sqli-error-based</code>, <code>sqli-time-based</code></td><td>DB error string, or a measurable <code>SLEEP</code> delay</td></tr>
+          <tr><td></td><td><code>cmdi-marker</code>, <code>cmdi-time-based</code></td><td>Shell command output reflected, or a sleep delay (blind RCE)</td></tr>
           <tr><td></td><td><code>ssti</code></td><td><code>{{1337*1331}}</code> evaluated to <code>1779547</code> server-side</td></tr>
-          <tr><td></td><td><code>xss-reflected</code></td><td>Payload reflected unescaped into HTML context</td></tr>
+          <tr><td></td><td><code>xss-reflected</code></td><td>Payload reflected unescaped into an HTML context</td></tr>
           <tr><td><strong>A05</strong> Misconfig</td><td><code>sensitive-file</code></td><td>Content-fingerprinted probes for .git, .env, AWS creds, phpinfo</td></tr>
           <tr><td></td><td><code>dir-discovery</code></td><td>SecLists common.txt directory bruteforce</td></tr>
           <tr><td></td><td><code>default-credentials</code></td><td>Curated web admin creds tested against configured login URLs</td></tr>
-          <tr><td><strong>A06</strong> Vuln Components</td><td><code>tech-fingerprint</code></td><td>Server / framework / CMS / runtime versions for manual CVE lookup</td></tr>
-          <tr><td></td><td><code>cve-2026-41940-cpanel-whm-auth-bypass</code></td><td>Non-invasive cPanel / WHM / WP Squared version check for auth-bypass vulnerable branches</td></tr>
-          <tr><td></td><td><code>cve-2026-42945-nginx-rift</code></td><td>Banner-based NGINX Rift vulnerable-version check without crash / DoS payloads</td></tr>
-          <tr><td><strong>A08</strong> Integrity</td><td><code>mass-assign-reflected</code> / <code>-accepted</code></td><td><code>isAdmin</code> / <code>role</code> / <code>owner</code> injection echoed or silently accepted</td></tr>
-          <tr><td><strong>A10</strong> SSRF</td><td><code>ssrf</code></td><td>Cloud metadata (AWS / GCP / Azure), <code>file://</code>, loopback, gopher / dict</td></tr>
+          <tr><td><strong>A06</strong> Vuln Components</td><td><code>tech-fingerprint</code></td><td>Server, framework, CMS, and runtime versions for manual CVE lookup</td></tr>
+          <tr><td></td><td><code>cve-2026-41940-cpanel-whm-auth-bypass</code></td><td>Non-invasive cPanel / WHM / WP Squared version check for auth-bypass-vulnerable branches</td></tr>
+          <tr><td></td><td><code>cve-2026-42945-nginx-rift</code></td><td>Banner-based NGINX Rift vulnerable-version check, no crash or DoS payloads</td></tr>
+          <tr><td><strong>A08</strong> Integrity</td><td><code>mass-assign-reflected</code>, <code>-accepted</code></td><td><code>isAdmin</code>, <code>role</code>, or <code>owner</code> injection echoed or silently accepted</td></tr>
+          <tr><td><strong>A10</strong> SSRF</td><td><code>ssrf</code></td><td>Cloud metadata (AWS, GCP, Azure), <code>file://</code>, loopback, gopher, dict</td></tr>
         </tbody>
       </table>
     </div>
 
     <h2 style="margin-top:56px">Service scanners (<code>ngehe box</code>)</h2>
-    <p class="section-sub">Auto-dispatched per service nmap finds open.</p>
+    <p class="section-sub">Auto-dispatched per service that nmap finds open.</p>
 
     <div class="table-wrap">
       <table>
@@ -411,8 +465,8 @@
           <tr><td><strong>DNS</strong></td><td><code>dns-axfr-allowed</code>, <code>dns-subdomain</code></td></tr>
           <tr><td><strong>Databases</strong></td><td><code>db-default-creds-{mysql,postgres,mssql,redis}</code>, <code>db-no-auth-redis</code></td></tr>
           <tr><td><strong>Active Directory</strong></td><td><code>kerberos-asrep-roast</code>, <code>kerberos-kerberoast</code> (hashcat-format hashes via gokrb5)</td></tr>
-          <tr><td><strong>BloodHound</strong></td><td><code>bloodhound-collect</code> — LDAP-based collection into BloodHound JSON</td></tr>
-          <tr><td><strong>HTTP NTLM</strong></td><td><code>ntlm-spray-hit</code> — password spray against HTTP NTLM endpoints</td></tr>
+          <tr><td><strong>BloodHound</strong></td><td><code>bloodhound-collect</code>, LDAP-based collection into BloodHound JSON</td></tr>
+          <tr><td><strong>HTTP NTLM</strong></td><td><code>ntlm-spray-hit</code>, password spray against HTTP NTLM endpoints</td></tr>
         </tbody>
       </table>
     </div>
@@ -422,7 +476,7 @@
 <section id="integrations">
   <div class="container">
     <h2>External scanner integrations</h2>
-    <p class="section-sub">Four independent open-source scanners ngehe shells out to when their binaries are on PATH. Findings land in the same JSONL with <code>source:</code> set so you can filter native vs upstream. Install all four with <code>./install.sh --with-extras</code> — or skip the host install entirely and use the Docker image (everything pre-bundled).</p>
+    <p class="section-sub">Four independent open-source scanners that ngehe shells out to when their binaries are on PATH. Findings land in the same JSONL with <code>source:</code> set, so you can filter native against upstream. Install all four with <code>./install.sh --with-extras</code>, or skip the host install and use the Docker image, where everything is pre-bundled.</p>
 
     <div class="table-wrap">
       <table>
@@ -430,18 +484,21 @@
           <tr><th style="width:160px">Tool</th><th style="width:240px">Used by</th><th>Why</th></tr>
         </thead>
         <tbody>
-          <tr><td><strong>nuclei</strong></td><td><code>scan --nuclei</code>, <code>box --nuclei</code>, <code>surface --nuclei</code></td><td>Template-based scanner. Thousands of community CVE / default-config / exposure templates. Complements ngehe's hand-written detectors with breadth.</td></tr>
-          <tr><td><strong>amass</strong> (OWASP)</td><td><code>ngehe surface</code></td><td>Comprehensive passive subdomain enumeration. Slower than subfinder but reaches more sources.</td></tr>
-          <tr><td><strong>subfinder</strong></td><td><code>ngehe surface</code></td><td>Fast passive subdomain enumeration across many sources (CRT, VT, Shodan, ...).</td></tr>
-          <tr><td><strong>httpx</strong></td><td><code>ngehe surface</code></td><td>Probe hostnames for live HTTP. Captures status / title / webserver / tech fingerprint.</td></tr>
+          <tr><td><strong>nuclei</strong></td><td><code>scan --nuclei</code>, <code>box --nuclei</code>, <code>surface --nuclei</code></td><td>Template-based scanner. Thousands of community CVE, default-config, and exposure templates. Adds breadth to ngehe's hand-written detectors.</td></tr>
+          <tr><td><strong>amass</strong> (OWASP)</td><td><code>ngehe surface</code></td><td>Passive subdomain enumeration. Slower than subfinder, but reaches more sources.</td></tr>
+          <tr><td><strong>subfinder</strong></td><td><code>ngehe surface</code></td><td>Fast passive subdomain enumeration across many sources (CRT, VT, Shodan, and more).</td></tr>
+          <tr><td><strong>httpx</strong></td><td><code>ngehe surface</code></td><td>Probes hostnames for live HTTP. Captures status, title, webserver, and tech fingerprint.</td></tr>
         </tbody>
       </table>
     </div>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Each integration is opt-in. If a binary is missing, ngehe prints a hint and skips it without failing the run. Filter native vs upstream findings via <code>ngehe view</code> — no need to remember <code>jq</code>:</p>
-    <pre><span class="ok">$</span> ngehe view findings.jsonl --source nuclei
+    <p class="note">Filter native against upstream findings with <code>ngehe view</code>, no <code>jq</code> required:</p>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">filter by source</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="ok">$</span> ngehe view findings.jsonl --source nuclei
 <span class="ok">$</span> ngehe view findings.jsonl --source native      <span class="cmt"># just ngehe's own detectors</span>
 <span class="ok">$</span> ngehe view findings.jsonl --source upstream    <span class="cmt"># any external tool (nuclei/amass/subfinder/httpx)</span></pre>
+    </div>
   </div>
 </section>
 
@@ -452,8 +509,9 @@
 
     <div class="split">
       <div>
-        <div class="codecard">
-          <div class="filename">findings.jsonl (one finding per line)</div>
+        <span class="sample-tag">// illustrative finding, showing the JSONL field shape</span>
+        <div class="snippet">
+          <div class="snippet-bar"><span class="label">findings.jsonl (one finding per line)</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
 <pre>{
   <span class="kw">"rule"</span>: <span class="str">"ssti"</span>,
   <span class="kw">"severity"</span>: <span class="str">"critical"</span>,
@@ -461,38 +519,42 @@
   <span class="kw">"url"</span>: <span class="str">"http://target/api/greet?name=%7B%7B1337%2A1331%7D%7D"</span>,
   <span class="kw">"param"</span>: <span class="str">"query:name"</span>,
   <span class="kw">"payload"</span>: <span class="str">"{{1337*1331}}"</span>,
-  <span class="kw">"evidence"</span>: <span class="str">"Jinja2/Twig evaluated 1337*1331 → 1779547"</span>,
+  <span class="kw">"evidence"</span>: <span class="str">"Jinja2/Twig evaluated 1337*1331 to 1779547"</span>,
   <span class="kw">"why"</span>: <span class="str">"template expression evaluated server-side"</span>,
-  <span class="kw">"next"</span>: <span class="str">"RCE via template. Engine in evidence — chain to OS commands:
+  <span class="kw">"next"</span>: <span class="str">"RCE via template. Engine in evidence. Chain to OS commands.
     Jinja2: {{config.__class__.__init__.__globals__['os'].popen('id').read()}}
     Twig:   {{['id']|filter('system')}}"</span>
 }</pre>
         </div>
 
-        <p style="margin-top:16px; color: var(--muted); font-size: 14px;">Filter to actionable findings (no <code>jq</code> needed):</p>
-        <pre><span class="cmt"># Just the attack-chain candidates</span>
+        <p class="note">Filter to actionable findings, again no <code>jq</code> needed:</p>
+        <div class="snippet">
+          <div class="snippet-bar"><span class="label">slice and pipe</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="cmt"># Just the attack-chain candidates</span>
 <span class="ok">$</span> ngehe view findings.jsonl --severity critical,high
 
-<span class="cmt"># Convert filtered subset to markdown</span>
+<span class="cmt"># Convert the filtered subset to markdown</span>
 <span class="ok">$</span> ngehe view findings.jsonl --severity critical,high --markdown actionable.md
 
 <span class="cmt"># Pipe URLs into the next stage</span>
 <span class="ok">$</span> ngehe view findings.jsonl --rule httpx-live --urls | xargs -I{} ngehe scan -t {}</pre>
+        </div>
       </div>
 
       <div>
-        <div class="codecard">
-          <div class="filename">box.md (excerpt)</div>
+        <span class="sample-tag">// illustrative box.md excerpt</span>
+        <div class="snippet">
+          <div class="snippet-bar"><span class="label">box.md</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
 <pre><span class="kw">## Suggested attack chain</span>
 
 <span class="kw">1.</span> <span class="sev crit">CRITICAL</span> ssti at <span class="ok">/api/greet?name=...</span>
-   → RCE via Jinja2 template injection
-   → upgrade shell: <span class="ok">python3 -c 'import pty; pty.spawn("/bin/bash")'</span>
+   to RCE via Jinja2 template injection
+   upgrade the shell: <span class="ok">python3 -c 'import pty; pty.spawn("/bin/bash")'</span>
 
 <span class="kw">2.</span> <span class="sev high">HIGH</span> SUID PATH-hijack candidate on
-   <span class="ok">/usr/local/bin/backup-tool</span> (calls <span class="ok">tar</span> with relative path)
-   → drop a fake <span class="ok">tar</span> in <span class="ok">/tmp</span>; <span class="ok">export PATH=/tmp:$PATH</span>; run binary
-   → likely root shell. <span class="ok">cat /root/root.txt</span>
+   <span class="ok">/usr/local/bin/backup-tool</span> (calls <span class="ok">tar</span> with a relative path)
+   drop a fake <span class="ok">tar</span> in <span class="ok">/tmp</span>, then <span class="ok">export PATH=/tmp:$PATH</span> and run it
+   likely a root shell: <span class="ok">cat /root/root.txt</span>
 </pre>
         </div>
       </div>
@@ -503,84 +565,96 @@
 <section id="architecture">
   <div class="container">
     <h2>Architecture</h2>
-    <p class="section-sub">Each detector and service module is an independent Go package under <code>internal/</code>. They share <code>httpx</code>, <code>fuzz</code>, <code>oracle</code>, <code>finding</code>, and <code>wordlist</code> utilities.</p>
+    <p class="section-sub">Each detector and service module is an independent Go package under <code>internal/</code>. They share the <code>httpx</code>, <code>fuzz</code>, <code>oracle</code>, <code>finding</code>, and <code>wordlist</code> utilities.</p>
 
-<div class="arch-diagram">            ┌───────────────────────────────────────┐
-            │           target / capture            │
-            └───┬──────────────────┬────────────────┘
-                ▼                  ▼
-       ┌──────────────────┐   ┌──────────────────┐
-       │   ngehe recon    │   │   ngehe scan     │
-       │   (URL only)     │   │  (HAR / OpenAPI) │
-       └────────┬─────────┘   └────────┬─────────┘
-                ▼                      ▼
-       ┌─────────────────────────────────────────┐
-       │ fingerprint   sensitive    dirbust      │
-       │ sqli  cmdi  ssti  lfi  ssrf  xss  creds │
-       │ bola  jwt-abuse  id-mutate  mass-assign │
-       └────────────────────┬────────────────────┘
-                            ▼
-                ┌────────────────────────┐
-                │ JSONL + markdown report│
-                └────────────────────────┘</div>
+<div class="arch-diagram" role="img" aria-label="Data flow: a target or capture feeds ngehe recon (URL only) and ngehe scan (HAR or OpenAPI); both run the detector set, which writes a JSONL and markdown report.">            +---------------------------------------+
+            |           target / capture            |
+            +---+------------------+----------------+
+                v                  v
+       +------------------+   +------------------+
+       |   ngehe recon    |   |   ngehe scan     |
+       |   (URL only)     |   |  (HAR / OpenAPI) |
+       +--------+---------+   +--------+---------+
+                v                      v
+       +-----------------------------------------+
+       | fingerprint   sensitive    dirbust      |
+       | sqli  cmdi  ssti  lfi  ssrf  xss  creds  |
+       | bola  jwt-abuse  id-mutate  mass-assign  |
+       +--------------------+--------------------+
+                            v
+                +------------------------+
+                | JSONL + markdown report|
+                +------------------------+</div>
   </div>
 </section>
 
 <section id="container">
   <div class="container">
     <h2>Container</h2>
-    <p class="section-sub">Don't want to install on your host? The bundled Docker image runs on Linux, macOS (Apple Silicon + Intel), and Windows/WSL — same image, no platform-specific compile pain.</p>
+    <p class="section-sub">Prefer not to install on your host? The bundled Docker image runs on Linux, macOS (Apple Silicon and Intel), and Windows/WSL, one image with no platform-specific compile pain.</p>
 
-    <div class="codecard">
-      <div class="filename">clone, build, run</div>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">clone, build, run</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
 <pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
 <span class="ok">$</span> cd ngehe
-<span class="ok">$</span> ./scripts/ngehe doctor                    <span class="cmt"># auto-builds image on first run (15-25 min)</span>
+<span class="ok">$</span> ./scripts/ngehe doctor                    <span class="cmt"># builds the image on first run (15-25 min)</span>
 <span class="ok">$</span> ./scripts/ngehe surface -d example.com --nuclei
 <span class="ok">$</span> ./scripts/ngehe --shell                   <span class="cmt"># interactive shell with every tool on PATH</span></pre>
     </div>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">
-      ~2GB image, the <strong>full web + box pentest toolkit</strong>. ngehe + nuclei (templates pre-baked) + amass + subfinder + httpx + nmap + sqlmap + ffuf + gobuster + dalfox + hashcat + impacket + netexec + evil-winrm + kerbrute + enum4linux-ng + smbclient + ldap-utils + bloodhound-python + PayloadsAllTheThings. Build once, every command works.
+    <p class="note">
+      Roughly a 2GB image: the full web and box pentest toolkit. ngehe, nuclei (templates pre-baked), amass, subfinder, httpx, nmap, sqlmap, ffuf, gobuster, dalfox, hashcat, impacket, netexec, evil-winrm, kerbrute, enum4linux-ng, smbclient, ldap-utils, bloodhound-python, and PayloadsAllTheThings. Build once, every command works.
     </p>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Or docker compose (auto-builds on first run):</p>
+    <p class="note">Or use docker compose, which auto-builds on first run:</p>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">docker compose</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
 <pre><span class="ok">$</span> docker compose run --rm ngehe surface -d example.com --nuclei</pre>
+    </div>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">No public registry image yet — same model as <a href="https://github.com/owasp-amass/amass">amass</a>. Set <code>NGEHE_IMAGE=ghcr.io/me/ngehe:latest</code> after pushing to your own registry to swap the local build for a pull.</p>
+    <p class="note">No public registry image yet, the same model as <a href="https://github.com/owasp-amass/amass">amass</a>. Set <code>NGEHE_IMAGE=ghcr.io/me/ngehe:latest</code> after pushing to your own registry to swap the local build for a pull.</p>
 
-    <div class="callout"><strong>macOS note:</strong> Docker Desktop's <code>--network host</code> runs through a VM bridge — LAN/RFC1918 targets are reachable, but raw-socket nmap modes need <code>--cap-add=NET_RAW</code>. ngehe uses TCP-connect scans by default, so the basic flow works as-is.</div>
+    <div class="callout"><strong>macOS note:</strong> Docker Desktop's <code>--network host</code> runs through a VM bridge, so LAN and RFC1918 targets are reachable, but raw-socket nmap modes need <code>--cap-add=NET_RAW</code>. ngehe uses TCP-connect scans by default, so the basic flow works as is.</div>
   </div>
 </section>
 
 <section id="install">
   <div class="container">
     <h2>Install (host)</h2>
-    <p class="section-sub">Prefer to install on the host? Detects brew / apt / dnf / pacman / apk, installs <code>nmap</code>, builds, and drops <code>ngehe</code> in <code>/usr/local/bin</code>.</p>
+    <p class="section-sub">Prefer a host install? The script detects brew, apt, dnf, yum, pacman, or apk, installs <code>nmap</code>, builds ngehe, and drops it in <code>/usr/local/bin</code>.</p>
 
-    <div class="codecard">
-      <div class="filename">one-line install</div>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">install</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
 <pre><span class="ok">$</span> git clone https://github.com/chud-lori/ngehe.git
 <span class="ok">$</span> cd ngehe
 <span class="ok">$</span> sudo ./install.sh                       <span class="cmt"># base: ngehe + nmap</span>
 <span class="ok">$</span> sudo ./install.sh --with-extras         <span class="cmt"># also nuclei + amass + subfinder + httpx</span></pre>
     </div>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Non-root install to <code>~/.local/bin</code>:</p>
-    <pre><span class="ok">$</span> PREFIX=$HOME/.local ./install.sh --with-extras</pre>
+    <p class="note">Non-root install to <code>~/.local/bin</code>:</p>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">non-root install</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="ok">$</span> PREFIX=$HOME/.local ./install.sh --with-extras</pre>
+    </div>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Uninstall (three tiers):</p>
-    <pre><span class="ok">$</span> sudo ./install.sh --uninstall                   <span class="cmt"># ngehe binary only</span>
+    <p class="note">Uninstall, in three tiers:</p>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">uninstall</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="ok">$</span> sudo ./install.sh --uninstall                   <span class="cmt"># ngehe binary only</span>
 <span class="ok">$</span> sudo ./install.sh --uninstall --with-extras     <span class="cmt"># also remove the four extras</span>
-<span class="ok">$</span> sudo ./install.sh --uninstall --purge           <span class="cmt"># nuke everything: + nmap + template cache + go modcache</span></pre>
+<span class="ok">$</span> sudo ./install.sh --uninstall --purge           <span class="cmt"># remove everything: + nmap + template cache + go modcache</span></pre>
+    </div>
 
-    <p style="margin-top:18px; color: var(--muted); font-size: 14px;">Verify deps:</p>
-    <pre><span class="ok">$</span> ngehe doctor
+    <p class="note">Verify dependencies:</p>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">ngehe doctor</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="ok">$</span> ngehe doctor
 <span class="cmt"># required: nmap                     (for ngehe box)</span>
 <span class="cmt"># recommended: hashcat / sqlmap / bloodhound</span></pre>
+    </div>
 
     <div class="callout">
-      <strong>Authorized use only.</strong> ngehe sends real payloads — SQL injection markers, command-injection probes, traversal sequences, JWT manipulation, password sprays. Use only against systems you own, have written permission to test, or that are explicitly CTF / HTB targets. Coordinate with the asset owner before scanning production.
+      <strong>Authorized use only.</strong> ngehe sends real payloads: SQL injection markers, command-injection probes, traversal sequences, JWT manipulation, and password sprays. Use it only against systems you own, have written permission to test, or that are explicitly CTF or HTB targets. Coordinate with the asset owner before scanning production.
     </div>
   </div>
 </section>
@@ -588,27 +662,27 @@
 <section id="quickstart">
   <div class="container">
     <h2>HTB quick start</h2>
-    <p class="section-sub">Pwning a typical HTB box with ngehe.</p>
+    <p class="section-sub">Working a typical HTB box with ngehe.</p>
 
-    <div class="codecard">
-      <div class="filename">workflow</div>
+    <div class="snippet">
+      <div class="snippet-bar"><span class="label">workflow</span><button type="button" class="copy-btn" data-copy>Copy</button></div>
 <pre><span class="cmt"># 1. Full-spectrum scan. Hits every open port.</span>
 <span class="ok">$</span> ngehe box --target 10.10.11.5 --domain target.htb --markdown box.md
 
-<span class="cmt"># 2. If a web app is in scope: capture real traffic in Burp / mitmproxy.</span>
-<span class="cmt"># 3. Write ngehe.yaml with sessions + default-creds URLs.</span>
+<span class="cmt"># 2. If a web app is in scope: capture real traffic in Burp or mitmproxy.</span>
+<span class="cmt"># 3. Write ngehe.yaml with sessions and default-creds URLs.</span>
 <span class="ok">$</span> ngehe init --out ngehe.yaml
 
-<span class="cmt"># 4. Active web scan — every detector.</span>
+<span class="cmt"># 4. Active web scan, every detector.</span>
 <span class="ok">$</span> ngehe scan --har capture.har --config ngehe.yaml --markdown web.md
 
-<span class="cmt"># 5. Read the "Suggested attack chain" header in box.md / web.md.</span>
+<span class="cmt"># 5. Read the "Suggested attack chain" header in box.md or web.md.</span>
 <span class="cmt"># 6. Run the literal commands ngehe printed in the next field.</span>
-<span class="cmt"># 7. user.txt → root.txt.</span></pre>
+<span class="cmt"># 7. user.txt, then root.txt.</span></pre>
     </div>
 
-    <p style="margin-top:24px;">
-      Full walkthroughs (web → root.txt, AD → Domain Admin) in the
+    <p class="note">
+      Full walkthroughs (web to root.txt, AD to Domain Admin) live in the
       <a href="howto.html">HOWTO</a>.
     </p>
   </div>
@@ -622,15 +696,15 @@
     <div class="grid-3">
       <div class="card">
         <h3><a href="https://github.com/chud-lori/cornela">cornela</a></h3>
-        <p>Linux container kernel auditor (eBPF). Host hardening, escape-risk detection.</p>
+        <p>Linux container kernel auditor (eBPF). Host hardening and escape-risk detection.</p>
       </div>
       <div class="card">
         <h3><a href="https://github.com/chud-lori/milog">milog</a></h3>
-        <p>nginx + system monitor. Log scanning, exploit detection, host-integrity audits.</p>
+        <p>nginx and system monitor. Log scanning, exploit detection, host-integrity audits.</p>
       </div>
       <div class="card">
         <h3>ngehe</h3>
-        <p>Web + service pentest CLI. Active testing during authorized assessments and CTFs.</p>
+        <p>Web and service pentest CLI. Active testing during authorized assessments and CTFs.</p>
       </div>
     </div>
   </div>
@@ -640,7 +714,7 @@
   <div class="container">
     <div class="row">
       <div>
-        <strong>ngehe</strong> — Apache-2.0. SecLists wordlists are MIT.
+        <strong>ngehe</strong>, Apache-2.0. SecLists wordlists are MIT.
       </div>
       <ul>
         <li><a href="https://github.com/chud-lori/ngehe">GitHub</a></li>
@@ -650,6 +724,57 @@
     </div>
   </div>
 </footer>
+
+<script>
+  // Copy button: copies the code block inside the same .snippet. Real behavior,
+  // keyboard operable (native <button>), with a short visible confirmation.
+  (function () {
+    function flash(btn, label, state) {
+      var original = btn.getAttribute('data-label') || 'Copy';
+      btn.textContent = label;
+      btn.setAttribute('data-state', state);
+      window.setTimeout(function () {
+        btn.textContent = original;
+        btn.removeAttribute('data-state');
+      }, 1600);
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'absolute';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      var snippet = btn.closest('.snippet');
+      var pre = snippet && snippet.querySelector('pre');
+      if (!pre) return;
+      var text = pre.innerText;
+      function useFallback() {
+        var ok = fallbackCopy(text);
+        flash(btn, ok ? 'Copied' : 'Select to copy', ok ? 'done' : 'fail');
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          function () { flash(btn, 'Copied', 'done'); },
+          useFallback
+        );
+      } else {
+        useFallback();
+      }
+    });
+  })();
+</script>
 
 </body>
 </html>
